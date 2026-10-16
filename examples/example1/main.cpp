@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include <bakuon/bakuon.h>
+#include <bakuon/core/bakuon.h>
 
 int main(int argc, char *argv[])
 {

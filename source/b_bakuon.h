@@ -15,4 +15,6 @@ namespace bakuon {
  */
 [[nodiscard]] std::string_view versionString() noexcept;
 
+[[nodiscard]] std::size_t stringHashed(std::string_view str) noexcept;
+
 } // namespace bakuon

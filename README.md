@@ -1,2 +1,2 @@
-# Bakuon Template
+# Bakuon Core
 

@@ -2,8 +2,6 @@
 # vendor —— 第三方依赖的统一入口
 # ============================================================================
 
-# set(CPM_SOURCE_CACHE "${CMAKE_SOURCE_DIR}/vendor")
-
 # 仅在需要构建测试时才拉取 googletest，避免非测试场景下的无谓下载/编译开销。
 if(BAKUON_BUILD_TESTS)
     cpmaddpackage(

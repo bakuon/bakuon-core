@@ -19,3 +19,5 @@ bakuon_add_module(
     PUBLIC_INCLUDE_DIRS
     ${BAKUON_ROOT_DIR}/include
 )
+
+bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR} ALIAS "core")
