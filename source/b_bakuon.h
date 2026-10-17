@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bakuon/core/api.h>
+
 #include <string_view>
 
 namespace bakuon {
@@ -13,8 +15,8 @@ namespace bakuon {
  *  2. 未来出现更多非模板的辅助函数时，这里是自然的落脚点，不必因为
  *     "只有模板代码"就临时找个地方硬塞一个 .cpp。
  */
-[[nodiscard]] std::string_view versionString() noexcept;
+[[nodiscard]] BAKUON_CORE_API std::string_view versionString() noexcept;
 
-[[nodiscard]] std::size_t stringHashed(std::string_view str) noexcept;
+[[nodiscard]] BAKUON_CORE_API std::size_t stringHashed(std::string_view str) noexcept;
 
 } // namespace bakuon

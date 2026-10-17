@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <bakuon/bakuon.h>
+#include <bakuon/core/bakuon.h>
 
 TEST(BakuonTest, bakuon)
 {

@@ -1,0 +1,12 @@
+# Usage: cmake -DPUBLIC_DIR=<include dir> -P check_no_entt.cmake
+file(GLOB_RECURSE _headers "${PUBLIC_DIR}/*.h" "${PUBLIC_DIR}/*.hpp")
+set(_bad "")
+foreach(_h IN LISTS _headers)
+    file(READ "${_h}" _content)
+    if(_content MATCHES "entt::|<entt/|ENTT_|entt_traits")
+        list(APPEND _bad "${_h}")
+    endif()
+endforeach()
+if(_bad)
+    message(FATAL_ERROR "Backend symbols leaked into public headers:\n  ${_bad}")
+endif()

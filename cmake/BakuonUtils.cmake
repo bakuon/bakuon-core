@@ -245,6 +245,8 @@ function(bakuon_add_module)
             BAKUON_${_bakuon_module_upper}_DEPRECATED
         )
 
+        target_compile_definitions(${MODULE_NAME} PRIVATE BAKUON_${_bakuon_module_upper}_BUILD)
+
         # BUILD_INTERFACE 即可：生成头只在构建这份源码时用得到，装 SDK 包的场景等
         # BAKUON_INSTALL_SDK 真正打开时再一并处理导出头的安装路径（见 bakuon_install_module()）。
         target_include_directories(${MODULE_NAME} PUBLIC $<BUILD_INTERFACE:${_bakuon_export_dir}>)

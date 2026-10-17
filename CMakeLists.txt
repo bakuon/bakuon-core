@@ -42,6 +42,42 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # ============================================================================
+# 配置 ID_TYPE
+#
+# # 引入该库编译时生成的配置文件（可以通过环境变量或 CMake 变量传入路径）
+# 例如：cmake -DBAKUON_BUILD_DIR=/path/to/bakuon/build ..
+# include("${DBAKUON_BUILD_DIR}/BakuonConfig.cmake" OPTIONAL RESULT_VARIABLE BAKUON_CONFIG_FOUND)
+#
+# if(NOT BAKUON_CONFIG_FOUND)
+#     message(FATAL_ERROR "找不到核心库配置文件！请指定 -DBAKUON_BUILD_BIT")
+# endif()
+#
+# # 【严格安全校验】检查插件的位数是否与宿主完全一致
+# if(NOT CMAKE_SIZEOF_VOID_P EQUAL BAKUON_BUILD_BIT)
+#     message(FATAL_ERROR "架构不匹配！核心库是 ${BAKUON_BUILD_BIT} 位，而插件正尝试编译为 ${CMAKE_SIZEOF_VOID_P} 位！")
+# endif()
+# ============================================================================
+# 平台检测
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(BAKUON_ID_TYPE "std::uint64_t")
+else()
+    set(BAKUON_ID_TYPE "std::uint32_t")
+endif()
+
+# 给 EnTT 注入宏
+add_compile_definitions(ENTT_ID_TYPE=${BAKUON_ID_TYPE})
+
+# 生成供插件使用的 CMake 配置文件
+file(
+    WRITE "${CMAKE_BINARY_DIR}/BakuonConfig.cmake"
+    "
+    # 这是由核心库工程自动生成的配置文件，请勿手动修改
+    set(BAKUON_BUILD_BIT ${CMAKE_SIZEOF_VOID_P})
+    set(BAKUON_ID_TYPE_STR \"${BAKUON_ID_TYPE}\")
+    "
+)
+
+# ============================================================================
 # 统一产物输出目录
 #
 # 所有可执行文件和"运行期"产物统一收拢到同一个 bin/ 目录：

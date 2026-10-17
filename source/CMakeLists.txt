@@ -11,6 +11,7 @@ bakuon_add_module(
     ${PROJECT_NAME}
     PATH
     ${CMAKE_CURRENT_SOURCE_DIR}
+    SHARED
     DEPENDS
     EnTT::EnTT
     INCLUDE_DIRS
