@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 project(
-    bakuon
+    core
     VERSION 1.0.0
     LANGUAGES CXX
 )
@@ -11,11 +11,12 @@ bakuon_add_module(
     ${PROJECT_NAME}
     PATH
     ${CMAKE_CURRENT_SOURCE_DIR}
-    SHARED
+    EXPORT_MACRO
+    "BAKUON_CORE_API" # 头文件中使用的导出宏
     DEPENDS
     EnTT::EnTT
     INCLUDE_DIRS
-    ${BAKUON_ROOT_DIR}/include
+    ${BAKUON_ROOT_DIR}/source
     # 面向消费者的稳定门面头文件根目录：include/bakuon/*.h
     PUBLIC_INCLUDE_DIRS
     ${BAKUON_ROOT_DIR}/include

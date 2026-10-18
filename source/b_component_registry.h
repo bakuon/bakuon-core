@@ -13,7 +13,7 @@ namespace bakuon::core {
 
 /// One instance per domain: no global state, so type tables of different
 /// domains are fully independent.
-class BAKUON_CORE_API ComponentRegistry final : public IComponents
+class ComponentRegistry final : public IComponents
 {
 public:
     explicit ComponentRegistry(const Registry& registry);

@@ -11,7 +11,7 @@
 
 namespace bakuon::core {
 
-class BAKUON_CORE_API PluginManager
+class PluginManager
 {
 public:
     explicit PluginManager(World& world) noexcept

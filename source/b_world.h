@@ -42,7 +42,7 @@ public:
  * 钩子里可以创建其它域、销毁其它域；对正在销毁的域再次 destroy 返回 false。
  *
  */
-class BAKUON_CORE_API World : public IWorld
+class World : public IWorld
 {
 public:
     using Initializer    = IWorld::Initializer;

@@ -1,14 +1,13 @@
 #pragma once
 /** @file b_module_loader.h  INTERNAL. OS dynamic library wrapper. */
 
-#include <bakuon/core/api.h>
 #include <bakuon/core/status.h>
 
 #include <string>
 
 namespace bakuon::core {
 
-class BAKUON_CORE_API ModuleLoader
+class ModuleLoader
 {
 public:
     ModuleLoader() = default;

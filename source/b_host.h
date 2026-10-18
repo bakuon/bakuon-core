@@ -7,7 +7,7 @@
 
 namespace bakuon::core {
 
-class BAKUON_CORE_API Host final : public IHost
+class Host final : public IHost
 {
 public:
     Host()

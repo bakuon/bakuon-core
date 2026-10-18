@@ -1,7 +1,3 @@
-if(NOT TARGET bakuon)
-    return()
-endif()
-
 # 基础模块标签
 set(module_label "unit")
 
@@ -26,9 +22,11 @@ foreach(file_name ${UNIT_TESTS})
         SOURCES
         ${file_name}
         DEPENDS
-        bakuon::bakuon
+        bakuon::core_static
         # bakuon_add_test 已包含 gtest, gtest_main 加在这可能希望自定义的 main 入口
         gtest_main
+        INCLUDE_DIRS
+        ${BAKUON_ROOT_DIR}/source
         LABELS
         "${module_label}"
     )

@@ -13,7 +13,7 @@ namespace bakuon::core {
 
 class World;
 
-class BAKUON_CORE_API Scheduler final : public IScheduler
+class Scheduler final : public IScheduler
 {
 public:
     explicit Scheduler(World& world);

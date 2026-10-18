@@ -1,5 +1,4 @@
-#include "b_domain.h"
-#include <bakuon/core/component.h>
+#include "b_bakuon.h"
 
 #include <gtest/gtest.h>
 

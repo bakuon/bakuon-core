@@ -3,7 +3,7 @@
 # CONFIGURE_DEPENDS：新增/删除源文件时自动触发 cmake 重新配置，
 # 早期孵化阶段文件变动频繁，这个便利性优先于极少数场景下的重新配置开销。
 # ============================================================================
-function(_bakuon_glob_module_files MODULE_PATH OUT_HEADERS OUT_SOURCES)
+function(bakuon_glob_module_files MODULE_PATH OUT_HEADERS OUT_SOURCES)
     file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "${MODULE_PATH}/*.h")
     file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${MODULE_PATH}/*.cpp")
 
@@ -137,8 +137,8 @@ endfunction()
 function(bakuon_add_module)
     cmake_parse_arguments(
         ARG
-        "SHARED"
-        "NAME;PATH"
+        ""
+        "NAME;PATH;EXPORT_MACRO"
         "DEPENDS;INCLUDE_DIRS;PUBLIC_INCLUDE_DIRS"
         ${ARGN}
     )
@@ -146,8 +146,15 @@ function(bakuon_add_module)
     set(MODULE_NAME ${ARG_NAME})
     set(MODULE_PATH ${ARG_PATH})
     set(AMALGAM_H "${MODULE_PATH}/${MODULE_NAME}.h")
+    string(TOUPPER ${MODULE_NAME} UPPER_NAME)
 
-    _bakuon_glob_module_files("${MODULE_PATH}" ALL_HEADERS ALL_SOURCES)
+    # 默认生成导出宏名称，例如：BAKUON_CORE_EXPORTS
+    if(NOT ARG_EXPORT_MACRO)
+        set(ARG_EXPORT_MACRO "${UPPER_NAME}_EXPORT")
+    endif()
+
+    # 收集源文件
+    bakuon_glob_module_files("${MODULE_PATH}" ALL_HEADERS ALL_SOURCES)
 
     # “聚合入口头”（MODULE_NAME.h 作为整个模块唯一的公共门面）是可选约定，不是强制要求：
     # 只有当它真实存在时才作为 PUBLIC 源加入、并从 PRIVATE 头文件列表中去重；模块内其余头文件
@@ -169,101 +176,71 @@ function(bakuon_add_module)
         )
     endif()
 
-    # SHARED（可选开关）：默认仍产出 STATIC 库，与现状保持兼容；传入 SHARED 后改为产出
-    # 动态库（.dll/.so/.dylib）——目前 bakuon::gui 用它，是为了让插件 / 沙箱进程 / Host
-    # 应用程序都能共享同一份 ExtensionSystem::instance() 之类的进程内单例（STATIC 库分别
-    # 静态链接进多个二进制时，每个二进制各自持有一份独立的单例，见
-    # include/bakuon/gui/PluginContext.h 顶部关于这一点的详细说明）。
-    set(_bakuon_lib_type STATIC)
-    if(ARG_SHARED)
-        set(_bakuon_lib_type SHARED)
-    endif()
-
-    add_library(${MODULE_NAME} ${_bakuon_lib_type})
-    add_library(bakuon::${MODULE_NAME} ALIAS ${MODULE_NAME})
-
-    target_sources(${MODULE_NAME} PRIVATE ${ALL_SOURCES} ${ALL_HEADERS})
-    if(PUBLIC_AMALGAM_HEADER)
-        target_sources(${MODULE_NAME} PUBLIC ${PUBLIC_AMALGAM_HEADER})
-    endif()
-
-    # PUBLIC 路径统一以仓库 source/ 为根，保持 "gui/xxx.h" 这种模块前缀式 include 惯例；
-    # 使用 BAKUON_ROOT_DIR 而非 CMAKE_SOURCE_DIR，确保被上层工程 add_subdirectory() 集成时依然正确。
+    # 1. 创建 OBJECT 对象库（核心编译单元，只编译一次）
+    set(OBJ_TARGET "${MODULE_NAME}_objects")
+    add_library(${OBJ_TARGET} OBJECT ${ALL_SOURCES} ${ALL_HEADERS})
+    # 配置对象库的包含路径
     target_include_directories(
-        ${MODULE_NAME}
-        PUBLIC $<BUILD_INTERFACE:${BAKUON_ROOT_DIR}/source>
+        ${OBJ_TARGET}
+        PUBLIC ${ARG_PUBLIC_INCLUDE_DIRS}
         PRIVATE ${ARG_INCLUDE_DIRS}
     )
-
-    # PUBLIC_INCLUDE_DIRS：面向“第三方插件开发者”的稳定门面 API（include/bakuon/...），
-    # 与上面 source/ 的内部实现路径分开传入是刻意的——
-    # source/ 暴露的是内部实现（b_xxx.h 命名，随时可能重构），
-    # PUBLIC_INCLUDE_DIRS 暴露的是精心维护、尽量不破坏兼容性的转发门面（见 include/bakuon/gui/*.h）。
-    # 二者当前都以 PUBLIC 方式传递给消费者（这意味着插件工程 link 了 bakuon::gui 后两条路径都能拿到，
-    # 也就还没有做到“插件只能看到门面、看不到内部实现”的强隔离——真要做到这点，
-    # 需要把 source/ 的 include 拆到单独的 PRIVATE/INTERFACE 目标里，目前先不做这个更大的改动，
-    # 留给以后插件生态成型、确实需要收紧可见性时再处理）。
-    if(ARG_PUBLIC_INCLUDE_DIRS)
-        target_include_directories(
-            ${MODULE_NAME} PUBLIC $<BUILD_INTERFACE:${ARG_PUBLIC_INCLUDE_DIRS}>
-                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-        )
-    endif()
-
     if(ARG_DEPENDS)
-        target_link_libraries(${MODULE_NAME} PUBLIC ${ARG_DEPENDS})
+        target_link_libraries(${OBJ_TARGET} PUBLIC ${ARG_DEPENDS})
     endif()
+    # 让对象库在 Windows 下自动生成位置无关代码（为动态库做准备）
+    set_target_properties(${OBJ_TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-    _bakuon_apply_common_target_settings(${MODULE_NAME})
+    # 2. 创建 SHARED 动态库（供插件使用）
+    set(SHARED_TARGET "${MODULE_NAME}")
+    add_library(${SHARED_TARGET} SHARED $<TARGET_OBJECTS:${OBJ_TARGET}>)
+    add_library(bakuon::${SHARED_TARGET} ALIAS ${SHARED_TARGET})
+    # 必须在 generate_export_header 之前设置
+    set_target_properties(${SHARED_TARGET} PROPERTIES DEFINE_SYMBOL BAKUON_${UPPER_NAME}_BUILD)
+    set(EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_include")
+    set(EXPORT_HEADER "${EXPORT_DIR}/${MODULE_NAME}/b_${MODULE_NAME}_export.h")
+    generate_export_header(
+        ${SHARED_TARGET}
+        BASE_NAME
+        ${MODULE_NAME}
+        EXPORT_MACRO_NAME
+        ${ARG_EXPORT_MACRO}
+        EXPORT_FILE_NAME
+        ${EXPORT_HEADER}
+        DEPRECATED_MACRO_NAME
+        BAKUON_${UPPER_NAME}_DEPRECATED
+    )
+    # 关键：仅在编译 SHARED 目标时激活导出宏
+    target_compile_definitions(${SHARED_TARGET} PUBLIC BAKUON_${UPPER_NAME}_BUILD)
+    # BUILD_INTERFACE 即可：生成头只在构建这份源码时用得到，装 SDK 包的场景等
+    # BAKUON_INSTALL_SDK 真正打开时再一并处理导出头的安装路径（见 bakuon_install_module()）。
+    target_include_directories(${SHARED_TARGET} PUBLIC $<BUILD_INTERFACE:${EXPORT_DIR}>)
+    # 传递公共头文件目录给使用者（如插件）
+    target_include_directories(${SHARED_TARGET} INTERFACE ${ARG_PUBLIC_INCLUDE_DIRS})
+    # 别名与输出名称规整
+    set_target_properties(${SHARED_TARGET} PROPERTIES OUTPUT_NAME ${SHARED_TARGET})
+    set_target_properties(
+        ${SHARED_TARGET}
+        PROPERTIES CXX_VISIBILITY_PRESET hidden
+                   VISIBILITY_INLINES_HIDDEN ON
+                   # SOVERSION 用于 Linux/macOS 的 SONAME；早期版本号还会频繁
+                   # 变动，先固定在与模块 VERSION 的主版本一致即可。
+                   SOVERSION ${PROJECT_VERSION_MAJOR}
+    )
 
-    # ------------------------------------------------------------------------
-    # SHARED 专属收尾：生成导出宏 + 收紧默认符号可见性。
-    #
-    # 1. generate_export_header() 生成 BAKUON_<MODULE>_EXPORT，落在
-    #    "<module>/b_<module>_export.h"，与仓库既有的 "gui/b_xxx.h" 模块前缀 include
-    #    惯例保持一致，跨动态库边界访问的类/自由函数需要在声明处加上这个宏——
-    #    MSVC 上没有 __declspec(dllexport/dllimport) 就是链接错误，这一步不是可选项。
-    # 2. CXX_VISIBILITY_PRESET hidden + VISIBILITY_INLINES_HIDDEN：GCC/Clang 下默认
-    #    所有符号都可见，只有 Windows 才"必须显式导出"，如果不主动收紧 GCC/Clang 的
-    #    默认可见性，很容易出现"本地 Linux 编译一直正常，到 Windows CI 才发现漏标导出宏"
-    #    这种平台特有的返工。提前打开 hidden，让三个工具链用同一套导出宏描述来验证。
-    # ------------------------------------------------------------------------
-    if(ARG_SHARED)
-        string(TOUPPER "${MODULE_NAME}" _bakuon_module_upper)
-        set(_bakuon_export_dir "${CMAKE_CURRENT_BINARY_DIR}/generated_include")
-        set(_bakuon_export_header "${_bakuon_export_dir}/${MODULE_NAME}/b_${MODULE_NAME}_export.h")
+    # 3. 创建 STATIC 静态库（供单元测试使用）
+    set(STATIC_TARGET "${MODULE_NAME}_static")
+    add_library(${STATIC_TARGET} STATIC $<TARGET_OBJECTS:${OBJ_TARGET}>)
+    add_library(bakuon::${STATIC_TARGET} ALIAS ${STATIC_TARGET})
+    target_include_directories(${STATIC_TARGET} PUBLIC $<BUILD_INTERFACE:${EXPORT_DIR}>)
+    # 传递公共头文件给测试项目
+    target_include_directories(${STATIC_TARGET} INTERFACE ${ARG_PUBLIC_INCLUDE_DIRS})
+    # 别名与输出名称规整（避免与动态库重名冲突，可加后缀或放入不同目录）
+    set_target_properties(${STATIC_TARGET} PROPERTIES OUTPUT_NAME "${STATIC_TARGET}")
 
-        generate_export_header(
-            ${MODULE_NAME}
-            BASE_NAME
-            ${MODULE_NAME}
-            EXPORT_MACRO_NAME
-            BAKUON_${_bakuon_module_upper}_EXPORT
-            EXPORT_FILE_NAME
-            ${_bakuon_export_header}
-            DEPRECATED_MACRO_NAME
-            BAKUON_${_bakuon_module_upper}_DEPRECATED
-        )
+    bakuon_install_module(${SHARED_TARGET} "${ARG_PUBLIC_INCLUDE_DIRS}")
 
-        target_compile_definitions(${MODULE_NAME} PRIVATE BAKUON_${_bakuon_module_upper}_BUILD)
-
-        # BUILD_INTERFACE 即可：生成头只在构建这份源码时用得到，装 SDK 包的场景等
-        # BAKUON_INSTALL_SDK 真正打开时再一并处理导出头的安装路径（见 bakuon_install_module()）。
-        target_include_directories(${MODULE_NAME} PUBLIC $<BUILD_INTERFACE:${_bakuon_export_dir}>)
-
-        set_target_properties(
-            ${MODULE_NAME}
-            PROPERTIES CXX_VISIBILITY_PRESET hidden
-                       VISIBILITY_INLINES_HIDDEN ON
-                       # SOVERSION 用于 Linux/macOS 的 SONAME；早期孵化阶段版本号还会频繁
-                       # 变动，先固定在与模块 VERSION 的主版本一致即可。
-                       SOVERSION ${PROJECT_VERSION_MAJOR}
-        )
-    endif()
-
-    bakuon_install_module(${MODULE_NAME} "${ARG_PUBLIC_INCLUDE_DIRS}")
-
-    message(STATUS "[Build] ${MODULE_NAME} (${_bakuon_lib_type}, Non unity build, ${CMAKE_CURRENT_LIST_FILE})")
+    message(STATUS "[Build] ${MODULE_NAME} (Non unity build, ${CMAKE_CURRENT_LIST_FILE})")
 endfunction()
 
 # ============================================================================
@@ -460,7 +437,7 @@ function(bakuon_add_test)
         ARG
         "USE_QT_GUI;USE_QT_CORE"
         "NAME"
-        "SOURCES;DEPENDS;LABELS"
+        "SOURCES;DEPENDS;INCLUDE_DIRS;LABELS"
         ${ARGN}
     )
 
@@ -507,7 +484,9 @@ function(bakuon_add_test)
     endif()
 
     target_link_libraries(${ARG_NAME} PRIVATE gtest ${ARG_DEPENDS})
-    target_compile_features(${ARG_NAME} PRIVATE cxx_std_20)
+    if(ARG_INCLUDE_DIRS)
+        target_include_directories(${ARG_NAME} PRIVATE ${ARG_INCLUDE_DIRS})
+    endif()
 
     if(COMMAND bakuon_apply_warnings)
         bakuon_apply_warnings(${ARG_NAME})

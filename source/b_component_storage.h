@@ -16,7 +16,7 @@ namespace bakuon::core {
 /// Index = entt::basic_sparse_set<Entity> (paged sparse array, version checks,
 /// swap-and-pop). Payload = aligned byte array kept in lock-step with the
 /// sparse set's packed order: payload[i] belongs to entities()[i].
-class BAKUON_CORE_API ComponentStorage final
+class ComponentStorage final
 {
 public:
     ComponentStorage(std::uint32_t size, std::uint32_t align);

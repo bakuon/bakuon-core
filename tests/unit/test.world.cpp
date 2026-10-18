@@ -1,13 +1,10 @@
-#include <cstring>
+#include "b_bakuon.h"
+
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
-
-#include "b_entity.h"
-#include "b_world.h"
-#include "bakuon/core/domain.h"
-#include "bakuon/core/status.h"
 
 using namespace bakuon::core;
 

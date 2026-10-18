@@ -1,5 +1,4 @@
-#include "b_entity.h"
-#include <bakuon/core/entity.h>
+#include "b_bakuon.h"
 
 #include <gtest/gtest.h>
 

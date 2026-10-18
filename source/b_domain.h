@@ -15,7 +15,7 @@
 namespace bakuon::core {
 
 /// 重命名为 Domain
-class BAKUON_CORE_API Domain final : public IDomain
+class Domain final : public IDomain
 {
 public:
     Domain(DomainId id, std::string name, std::uint64_t serial);

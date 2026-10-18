@@ -1,5 +1,4 @@
-#include "b_component_storage.h"
-#include "b_entity.h"
+#include "b_bakuon.h"
 
 #include <gtest/gtest.h>
 

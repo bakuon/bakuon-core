@@ -14,7 +14,7 @@
 namespace bakuon::core {
 
 /// Tracks the systems one plugin registered; a plugin may only remove its own.
-class BAKUON_CORE_API PluginScheduler final : public IScheduler
+class PluginScheduler final : public IScheduler
 {
 public:
     explicit PluginScheduler(IScheduler& inner) noexcept
@@ -80,7 +80,7 @@ private:
     std::vector<std::string> m_owned;
 };
 
-class BAKUON_CORE_API PluginContext final : public IPluginContext
+class PluginContext final : public IPluginContext
 {
 public:
     explicit PluginContext(World& world)
@@ -101,7 +101,7 @@ private:
     PluginScheduler m_scheduler;
 };
 
-class BAKUON_CORE_API PluginHost
+class PluginHost
 {
 public:
     explicit PluginHost(World& world) noexcept

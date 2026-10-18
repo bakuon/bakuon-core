@@ -1,7 +1,5 @@
 #pragma once
 
-#include <bakuon/core/api.h>
-
 #include <functional>
 #include <utility>
 
@@ -46,7 +44,7 @@ namespace bakuon::core {
  * 两者互斥：无论 Connection 最终是被断开、还是被 dismiss()，都只会有其中
  * 一条路径真正执行，另一条会被清空、不再触发。
  */
-class BAKUON_CORE_API Connection
+class Connection
 {
 public:
     Connection() = default;

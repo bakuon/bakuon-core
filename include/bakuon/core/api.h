@@ -13,14 +13,16 @@
 
 // Symbols the host library exports to applications.
 // The host library's own build defines BAKUON_CORE_BUILD.
-#ifndef BAKUON_CORE_API
-#    if defined(_WIN32)
-#        if defined(BAKUON_BAKUON_BUILD)
-#            define BAKUON_CORE_API __declspec(dllexport)
-#        else
-#            define BAKUON_CORE_API __declspec(dllimport)
-#        endif
-#    else
-#        define BAKUON_CORE_API __attribute__((visibility("default")))
-#    endif
-#endif
+// #ifndef BAKUON_CORE_API
+// #    if defined(_WIN32)
+// #        if defined(BAKUON_CORE_BUILD)
+// #            define BAKUON_CORE_API __declspec(dllexport)
+// #        else
+// #            define BAKUON_CORE_API __declspec(dllimport)
+// #        endif
+// #    else
+// #        define BAKUON_CORE_API __attribute__((visibility("default")))
+// #    endif
+// #endif
+
+#include "core/b_core_export.h" // IWYU pragma: export
