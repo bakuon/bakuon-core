@@ -74,4 +74,34 @@ Status PluginManager::unload(const char* name) noexcept
     return Status::not_found;
 }
 
+Status PluginManager::adopt(IPlugin* plugin, PluginDisposeFn dispose, void* user) noexcept
+{
+    if (plugin == nullptr || dispose == nullptr) {
+        return Status::invalid_argument;
+    }
+    bool handed_over = false;
+    try {
+        m_error.clear();
+        m_entries.reserve(m_entries.size() + 1); // so the push_back below cannot throw
+        auto entry                       = std::make_unique<Entry>();
+        std::function<void(IPlugin*)> fn = [dispose, user](IPlugin* p) { dispose(p, user); };
+
+        std::string name;
+        handed_over    = true; // from here the host disposes the plugin on every failure
+        const Status s = m_host.adopt(plugin, std::move(fn), &name);
+        if (s != Status::ok) {
+            m_error = "plugin rejected (status " + std::to_string(static_cast<int>(s)) + ")";
+            return s;
+        }
+        entry->name = std::move(name);
+        m_entries.push_back(std::move(entry));
+        return Status::ok;
+    } catch (...) {
+        if (!handed_over) {
+            dispose(plugin, user);
+        }
+        return Status::out_of_memory;
+    }
+}
+
 } // namespace bakuon::core

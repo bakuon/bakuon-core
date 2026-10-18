@@ -34,7 +34,7 @@ target_compile_features(${OBJECT_TARGET} PUBLIC cxx_std_20)
 if(CMAKE_DL_LIBS)
     target_link_libraries(${OBJECT_TARGET} PUBLIC ${CMAKE_DL_LIBS})
 endif()
-target_compile_definitions(${OBJECT_TARGET} PUBLIC BAKUON_CORE_STATIC_DEFINE)
+target_compile_definitions(${OBJECT_TARGET} PUBLIC BAKUON_CORE_BUILD)
 set_target_properties(${OBJECT_TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 bakuon_apply_warnings(${OBJECT_TARGET})
@@ -56,7 +56,8 @@ if(CMAKE_DL_LIBS)
     target_link_libraries(${SHARED_TARGET} PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
-target_compile_definitions(${SHARED_TARGET} PUBLIC BAKUON_CORE_BUILD)
+# PRIVATE（仅 b_api.cpp 自己编译时需要）绝不能 PUBLIC：会泄漏给 主程序/插件
+target_compile_definitions(${SHARED_TARGET} PRIVATE BAKUON_CORE_BUILD)
 set_target_properties(${SHARED_TARGET} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
 bakuon_apply_warnings(${SHARED_TARGET})

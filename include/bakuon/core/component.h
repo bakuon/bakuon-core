@@ -31,12 +31,12 @@ namespace bakuon::core {
 
 /// 必须等于 ENTT_ID_TYPE（默认 uint32_t）
 /// 当前根据平台配置来设置（见根 CMakeList.txt BAKUON_ID_TYPE）
-using ComponentId = std::size_t;
-/*
+// using ComponentId = std::size_t;
+
 /// Stable id: 64-bit FNV-1a of the component name. 0 is invalid.
 struct ComponentId final
 {
-    std::uint64_t value{0};
+    std::size_t value{0};
 
     [[nodiscard]] constexpr bool valid() const noexcept { return value != 0; }
 
@@ -49,7 +49,6 @@ struct ComponentId final
         return a.value != b.value;
     }
 };
-*/
 
 /// Pure function of the name; plugin and host compute the same value.
 [[nodiscard]] constexpr ComponentId make_component_id(const char* name) noexcept
@@ -253,7 +252,7 @@ public:
                                      TypedComponent& out) noexcept
     {
         const ComponentId id = api.find(name);
-        if (id == 0) { // !id.valid()
+        if (!id.valid()) {
             return Status::not_registered;
         }
         ComponentInfo info{};
@@ -270,10 +269,7 @@ public:
         return Status::ok;
     }
 
-    [[nodiscard]] bool valid() const noexcept
-    {
-        return m_api != nullptr && m_id != 0; // id.valid()
-    }
+    [[nodiscard]] bool valid() const noexcept { return m_api != nullptr && m_id.valid(); }
     [[nodiscard]] ComponentId id() const noexcept { return m_id; }
 
     Status add(Entity e, const T& value, T** out = nullptr) const noexcept
@@ -342,11 +338,11 @@ private:
 
 } // namespace bakuon::core
 
-// template<>
-// struct std::hash<bakuon::core::ComponentId>
-// {
-//     std::size_t operator()(const bakuon::core::ComponentId& id) const noexcept
-//     {
-//         return std::hash<std::size_t>{}(id);
-//     }
-// };
+template<>
+struct std::hash<bakuon::core::ComponentId>
+{
+    std::size_t operator()(const bakuon::core::ComponentId& id) const noexcept
+    {
+        return std::hash<std::size_t>{}(id.value);
+    }
+};

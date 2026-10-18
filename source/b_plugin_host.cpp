@@ -1,6 +1,5 @@
 #include "b_plugin_host.h"
 #include "bakuon/core/plugin.h"
-#include <string>
 
 namespace bakuon::core {
 
@@ -25,12 +24,68 @@ bool PluginHost::is_loaded(const char* name) const noexcept
     return false;
 }
 
+void PluginHost::run_dispose(const std::function<void(IPlugin*)>& fn, IPlugin* plugin) noexcept
+{
+    try {
+        fn(plugin);
+    } catch (...) {
+    }
+}
+
 void PluginHost::teardown(Loaded& l) noexcept
 {
-    l.plugin->on_unload(*l.context);
-    l.context->release_systems(); // safety net for anything the plugin left behind
-    l.module.destroy(l.plugin);   // freed by the module that allocated it
+    l.plugin->on_unload(*l.context); // 1. the plugin cleans up after itself
+    l.context->release_all();        // 2. safety net: leftover systems, then hooked component types
+    run_dispose(l.dispose,
+                l.plugin); // 3. object destroyed (and its module released) by its own module
     l.plugin = nullptr;
+}
+
+Status PluginHost::adopt(IPlugin* plugin, std::function<void(IPlugin*)> dispose,
+                         std::string* out_name) noexcept
+{
+    if (plugin == nullptr || !dispose) {
+        return Status::invalid_argument;
+    }
+    // From here on the plugin object belongs to us: every failure path must dispose it.
+    const auto fail = [&](Status s) {
+        run_dispose(dispose, plugin);
+        return s;
+    };
+    if (plugin->abi_version() != IPlugin::abi_current) {
+        return fail(Status::abi_mismatch);
+    }
+    const char* name = plugin->name();
+    if (!is_valid_name(name)) {
+        return fail(Status::invalid_argument);
+    }
+    if (is_loaded(name)) {
+        return fail(Status::already_exists);
+    }
+
+    std::unique_ptr<Loaded> l;
+    try { // everything that can throw happens before the plugin is handed over
+        m_loaded.reserve(m_loaded.size() + 1);
+        l          = std::make_unique<Loaded>();
+        l->name    = name;
+        l->context = std::make_unique<PluginContext>(m_world);
+        if (out_name != nullptr) {
+            *out_name = name;
+        }
+    } catch (...) {
+        return fail(Status::out_of_memory);
+    }
+    l->plugin  = plugin;
+    l->dispose = std::move(dispose);
+
+    const Status s = plugin->on_load(*l->context);
+    if (s != Status::ok) {
+        l->context->release_all(); // roll back; on_unload is NOT called after a failed on_load
+        run_dispose(l->dispose, plugin);
+        return s;
+    }
+    m_loaded.push_back(std::move(l)); // reserved above: cannot throw
+    return Status::ok;
 }
 
 Status PluginHost::load(const PluginModule& m, std::string* out_name) noexcept
@@ -45,42 +100,11 @@ Status PluginHost::load(const PluginModule& m, std::string* out_name) noexcept
     if (plugin == nullptr) {
         return Status::load_failed;
     }
-    if (plugin->abi_version() != IPlugin::abi_current) {
-        m.destroy(plugin);
-        return Status::abi_mismatch;
-    }
-    const char* name = plugin->name();
-    if (!is_valid_name(name)) {
-        m.destroy(plugin);
-        return Status::invalid_argument;
-    }
-    if (is_loaded(name)) {
-        m.destroy(plugin);
-        return Status::already_exists;
-    }
-
+    const PluginDestroyFn destroy = m.destroy;
     try {
-        m_loaded.reserve(m_loaded.size() + 1); // so push_back below cannot throw
-        auto l     = std::make_unique<Loaded>();
-        l->name    = name;
-        l->module  = m;
-        l->plugin  = plugin;
-        l->context = std::make_unique<PluginContext>(m_world);
-
-        if (out_name != nullptr) {
-            *out_name = name;
-        }
-
-        const Status s = plugin->on_load(*l->context);
-        if (s != Status::ok) {
-            l->context->release_systems(); // roll back; on_unload is NOT called
-            m.destroy(plugin);
-            return s;
-        }
-        m_loaded.push_back(std::move(l));
-        return Status::ok;
-    } catch (...) {
-        m.destroy(plugin);
+        return adopt(plugin, [destroy](IPlugin* p) { destroy(p); }, out_name);
+    } catch (...) { // constructing the std::function failed; adopt was never entered
+        destroy(plugin);
         return Status::out_of_memory;
     }
 }

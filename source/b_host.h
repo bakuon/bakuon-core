@@ -24,6 +24,10 @@ public:
     {
         return m_plugins.name_at(i);
     }
+    Status adopt_plugin(IPlugin* p, PluginDisposeFn d, void* u) noexcept override
+    {
+        return m_plugins.adopt(p, d, u);
+    }
     const char* last_error() const noexcept override { return m_plugins.last_error(); }
 
 private:

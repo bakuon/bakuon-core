@@ -1,12 +1,15 @@
 #pragma once
-/** @file b_plugin_host.h  INTERNAL. Plugin lifecycle on top of function-pointer modules. */
+/** @file b_plugin_host.h  INTERNAL. Plugin lifecycle: tracked scheduler/domain views +
+ * adopt/load/unload. */
 
 #include "b_names.h"
+#include "b_plugin_view.h"
 #include "b_world.h"
 #include <bakuon/core/plugin.h>
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,15 +93,48 @@ public:
     }
 
     std::uint32_t abi_version() const noexcept override { return IPlugin::abi_current; }
-    IDomain* find_domain(const char* name) noexcept override { return m_world.find(name); }
-    IDomain* require_domain(const char* name) noexcept override { return m_world.require(name); }
+
+    IDomain* find_domain(const char* name) noexcept override
+    {
+        return view_for(m_world.find_internal(name));
+    }
+    IDomain* require_domain(const char* name) noexcept override
+    {
+        return view_for(static_cast<Domain*>(m_world.require(name)));
+    }
     IScheduler& scheduler() noexcept override { return m_scheduler; }
 
-    void release_systems() noexcept { m_scheduler.release_all(); }
+    /// Teardown safety net, in this order: leftover systems, then hooked component types.
+    void release_all() noexcept
+    {
+        m_scheduler.release_all();
+        for (auto it = m_views.rbegin(); it != m_views.rend(); ++it) {
+            (*it)->release();
+        }
+    }
 
 private:
+    IDomain* view_for(Domain* d) noexcept
+    {
+        if (d == nullptr) {
+            return nullptr;
+        }
+        for (const auto& v : m_views) {
+            if (v->domain() == d && v->serial() == d->serial()) {
+                return v.get();
+            }
+        }
+        try {
+            m_views.push_back(std::make_unique<PluginDomainView>(m_world, *d));
+            return m_views.back().get();
+        } catch (...) {
+            return nullptr;
+        }
+    }
+
     World& m_world;
     PluginScheduler m_scheduler;
+    std::vector<std::unique_ptr<PluginDomainView>> m_views;
 };
 
 class PluginHost
@@ -113,7 +149,14 @@ public:
     PluginHost(const PluginHost&)            = delete;
     PluginHost& operator=(const PluginHost&) = delete;
 
-    Status load(const PluginModule& module, std::string* out_name) noexcept;
+    /// Function-pointer module path (dlopen/LoadLibrary). Destroys the plugin object on failure.
+    Status load(const PluginModule& module, std::string* out_name = nullptr) noexcept;
+
+    /// Takes an already created plugin. `dispose` runs exactly once: after unload, or
+    /// immediately on any failure. It must destroy the object and release its module.
+    Status adopt(IPlugin* plugin, std::function<void(IPlugin*)> dispose,
+                 std::string* out_name = nullptr) noexcept;
+
     Status unload(const char* name) noexcept;
     bool is_loaded(const char* name) const noexcept;
     std::size_t count() const noexcept { return m_loaded.size(); }
@@ -122,10 +165,11 @@ private:
     struct Loaded
     {
         std::string name;
-        PluginModule module;
+        std::function<void(IPlugin*)> dispose;
         IPlugin* plugin{nullptr};
         std::unique_ptr<PluginContext> context;
     };
+    static void run_dispose(const std::function<void(IPlugin*)>& fn, IPlugin* plugin) noexcept;
     static void teardown(Loaded& l) noexcept;
 
     World& m_world;

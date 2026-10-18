@@ -52,10 +52,10 @@ TEST_F(ComponentsTest, RegisterFindDescribe)
     EXPECT_TRUE(pos.valid());
     EXPECT_TRUE(pos.id() == make_component_id("Position"));
     EXPECT_TRUE(comps().find("Position") == pos.id());
-    EXPECT_FALSE(comps().find("Nope") != 0);
+    EXPECT_FALSE(comps().find("Nope").valid());
     EXPECT_EQ(comps().count(), 1u);
     EXPECT_TRUE(comps().at(0) == pos.id());
-    EXPECT_FALSE(comps().at(1) != 0);
+    EXPECT_FALSE(comps().at(1).valid());
 
     ComponentInfo info{};
     info.struct_size = sizeof(info);
@@ -272,7 +272,7 @@ TEST_F(ComponentsTest, UnregisterDropsDataAndAllowsReRegistration)
 
     ASSERT_EQ(pos.unregister(), Status::ok);
     EXPECT_FALSE(pos.valid());
-    EXPECT_FALSE(comps().find("Position") != 0);
+    EXPECT_FALSE(comps().find("Position").valid());
     EXPECT_EQ(comps().count(), 0u);
     EXPECT_EQ(comps().count(old_id), 0u);
     EXPECT_FALSE(comps().has(e, old_id));
@@ -365,6 +365,6 @@ TEST(ComponentsIsolationTest, TypeTablesAreIndependentPerDomain)
     Domain b{Domain::from_name("game.b"), "b", 2};
     TypedComponent<Position> pos;
     ASSERT_EQ(TypedComponent<Position>::inregister(a.components(), "Position", pos), Status::ok);
-    EXPECT_FALSE(b.components().find("Position") != 0);
+    EXPECT_FALSE(b.components().find("Position").valid());
     EXPECT_EQ(b.components().count(), 0u);
 }

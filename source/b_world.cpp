@@ -159,7 +159,10 @@ Status World::destroy(DomainId id)
         return Status::not_found;
     }
 
-    Domain& domain   = *it->second;
+    Domain& domain = *it->second;
+    if (m_scheduler.uses_domain(domain.name())) {
+        return Status::busy;
+    }
     domain.m_closing = true; // mark busy
     try {
         notify(*m_hooks, &Hooks::destroying, domain);
@@ -200,6 +203,16 @@ void World::clear()
         }
         (void) destroy(last->id());
     }
+}
+
+bool World::is_live(const Domain* domain, std::uint64_t serial) const noexcept
+{
+    for (const auto& d : m_domains) {
+        if (d.second.get() == domain && d.second->serial() == serial) {
+            return true;
+        }
+    }
+    return false;
 }
 
 Domain* World::find_internal(std::string_view name) const noexcept

@@ -53,7 +53,7 @@ ComponentRegistry::~ComponentRegistry() = default;
 
 ComponentRegistry::TypeEntry* ComponentRegistry::find_entry(ComponentId id) const noexcept
 {
-    const auto it = m_by_id.find(id);
+    const auto it = m_by_id.find(id.value);
     return it == m_by_id.end() ? nullptr : it->second;
 }
 
@@ -74,7 +74,7 @@ Status ComponentRegistry::inregister(const ComponentDesc& d, ComponentId* out_id
         return Status::invalid_argument;
     }
     const ComponentId id = make_component_id(d.name);
-    if (id == 0) { // !id.valid()
+    if (!id.valid()) {
         return Status::invalid_argument;
     }
 
@@ -97,7 +97,7 @@ Status ComponentRegistry::inregister(const ComponentDesc& d, ComponentId* out_id
         TypeEntry* raw = entry.get();
         m_types.push_back(std::move(entry));
         try {
-            m_by_id.emplace(id, raw);
+            m_by_id.emplace(id.value, raw);
         } catch (...) {
             m_types.pop_back();
             throw;
@@ -113,7 +113,7 @@ Status ComponentRegistry::inregister(const ComponentDesc& d, ComponentId* out_id
 
 Status ComponentRegistry::unregister(ComponentId id) noexcept
 {
-    const auto it = m_by_id.find(id);
+    const auto it = m_by_id.find(id.value);
     if (it == m_by_id.end()) {
         return Status::not_registered;
     }
@@ -131,7 +131,7 @@ Status ComponentRegistry::unregister(ComponentId id) noexcept
 ComponentId ComponentRegistry::find(const char* name) const noexcept
 {
     const ComponentId id = make_component_id(name);
-    if (id == 0) { // !id.valid()
+    if (!id.valid()) {
         return ComponentId{};
     }
     const TypeEntry* t = find_entry(id);

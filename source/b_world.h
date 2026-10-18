@@ -91,6 +91,9 @@ public:
     Status build_schedule() noexcept override { return m_scheduler.build(); }
     Status run_frame(const FrameContext& ctx) noexcept override { return m_scheduler.run(ctx); }
 
+    /// True if `domain` is still owned by this world and was created with `serial`.
+    [[nodiscard]] bool is_live(const Domain* domain, std::uint64_t serial) const noexcept;
+
     Domain* find_internal(std::string_view name) const noexcept;
 
     /// 按创建顺序遍历。先对 handle 做快照再逐个 resolve()，回调里销毁其它域是安全的

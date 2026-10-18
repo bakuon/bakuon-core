@@ -4,6 +4,8 @@
 #include "b_module_loader.h"
 #include "b_plugin_host.h"
 
+#include <bakuon/core/host.h>
+
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -25,6 +27,8 @@ public:
 
     Status load(const char* utf8_path) noexcept;
     Status unload(const char* name) noexcept;
+    /// Takes an already created plugin object (see IHost::adopt_plugin). No library is tracked for it.
+    Status adopt(IPlugin* plugin, PluginDisposeFn dispose, void* user) noexcept;
 
     [[nodiscard]] std::size_t count() const noexcept { return m_entries.size(); }
     [[nodiscard]] const char* name_at(std::size_t index) const noexcept

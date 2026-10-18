@@ -61,8 +61,8 @@ public:
     /// added through ctx) and does NOT call on_unload.
     virtual Status on_load(IPluginContext& ctx) noexcept             = 0;
     // extensions initialized
-    virtual void on_ready(IPluginContext& ctx) noexcept              = 0;
-    virtual void on_unload(IPluginContext& ctx) noexcept             = 0;
+    virtual void on_ready(IPluginContext&) noexcept {};
+    virtual void on_unload(IPluginContext& ctx) noexcept = 0;
 
 protected:
     IPlugin()                          = default;
@@ -90,7 +90,7 @@ struct PluginModule final
 #define BAKUON_DEFINE_PLUGIN(PluginClass) \
     extern "C" BAKUON_PLUGIN_API std::uint32_t bakuon_plugin_abi_version() \
     { \
-        return ::bakuon::core::plugin_abi_version_current; \
+        return ::bakuon::core::IPlugin::abi_current; \
     } \
     extern "C" BAKUON_PLUGIN_API ::bakuon::core::IPlugin* bakuon_create_plugin() \
     { \

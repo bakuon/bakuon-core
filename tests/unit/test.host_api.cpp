@@ -53,7 +53,7 @@ TEST(HostApiTest, LoadRunUnloadThroughExportedApi)
     EXPECT_EQ(arr.data[0].value, 5);
 
     ASSERT_EQ(host->unload_plugin("test_plugin"), Status::ok);
-    EXPECT_EQ(d->components().find("TestCounter"), 0);
+    EXPECT_FALSE(d->components().find("TestCounter").valid());
     bakuon_host_destroy(host);
 }
 
