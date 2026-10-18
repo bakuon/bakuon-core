@@ -56,6 +56,7 @@ bool Domain::destroy(Entity entity) noexcept
         return false;
     }
     try {
+        m_components.erase_entity(entity);
         m_registry.destroy(entity);
     } catch (...) {
         return false;
@@ -72,6 +73,7 @@ bool Domain::alive(Entity entity) const noexcept
 void Domain::clear() noexcept
 {
     try {
+        m_components.clear_all();
         m_registry.clear();
         m_alive_count = 0;
     } catch (...) {
