@@ -29,8 +29,6 @@
 
 namespace bakuon::core {
 
-inline constexpr std::uint32_t plugin_abi_version_current = 1;
-
 /// What a plugin sees of the host. Valid between on_load and on_unload.
 class BAKUON_CORE_API IPluginContext
 {
@@ -54,6 +52,8 @@ protected:
 class BAKUON_CORE_API IPlugin
 {
 public:
+    static constexpr std::uint32_t abi_current = 1;
+
     [[nodiscard]] virtual std::uint32_t abi_version() const noexcept = 0;
     /// Unique, non-empty, stable for the plugin's lifetime.
     [[nodiscard]] virtual const char* name() const noexcept          = 0;

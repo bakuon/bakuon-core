@@ -1,3 +1,3 @@
 add_subdirectory(example1)
 
-bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR})
+# bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR})

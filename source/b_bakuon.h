@@ -13,7 +13,9 @@
 #include "b_scheduler.h"          // IWYU pragma: keep
 #include "b_world.h"              // IWYU pragma: keep
 
-namespace bakuon {
+#include <bakuon/core/bakuon.h>
+
+namespace bakuon::core {
 
 /**
  * @brief bakuon 模块版本号（人类可读），供诊断日志/关于对话框使用。
@@ -25,7 +27,7 @@ namespace bakuon {
  *     "只有模板代码"就临时找个地方硬塞一个 .cpp。
  */
 
-std::string_view versionString() noexcept;
-std::size_t stringHashed(std::string_view str) noexcept;
+// std::string_view versionString() noexcept;
+// std::size_t stringHashed(std::string_view str) noexcept;
 
-} // namespace bakuon
+} // namespace bakuon::core

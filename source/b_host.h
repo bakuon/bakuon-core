@@ -10,15 +10,12 @@ namespace bakuon::core {
 class Host final : public IHost
 {
 public:
-    Host()
-        : m_plugins(m_world)
-    {
-    }
+    Host();
 
     Host(const Host&)            = delete;
     Host& operator=(const Host&) = delete;
 
-    std::uint32_t abi_version() const noexcept override { return IHost::abi_version_current; }
+    std::uint32_t abi_version() const noexcept override { return IHost::abi_current; }
     IWorld& world() noexcept override { return m_world; }
     Status load_plugin(const char* path) noexcept override { return m_plugins.load(path); }
     Status unload_plugin(const char* name) noexcept override { return m_plugins.unload(name); }

@@ -1,33 +1,23 @@
-# 基础模块标签
-set(module_label "unit")
-
-set(UNIT_TESTS
-    "test.bakuon.cpp"
-    "test.entity.cpp"
-    "test.domain.cpp"
-    "test.world.cpp"
-    "test.components.cpp"
-    "test.component_storage.cpp"
+#==============================================================================
+# Internal tests: link the implementation objects directly.
+#==============================================================================
+add_executable(
+    bakuon_core_tests
+    test.bakuon.cpp test.component_storage.cpp test.components.cpp test.domain.cpp test.entity.cpp test.world.cpp
 )
+target_link_libraries(bakuon_core_tests PRIVATE bakuon_core_obj EnTT::EnTT GTest::gtest_main)
+target_include_directories(bakuon_core_tests PRIVATE ${BAKUON_CORE_ROOT_DIR}/source)
+bakuon_apply_warnings(bakuon_core_tests)
+gtest_discover_tests(bakuon_core_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS "unit")
 
-foreach(file_name ${UNIT_TESTS})
-    # 从文件名提取 TestName（例如：BakuonTest -> test_unit_bakuon）
-    string(REGEX REPLACE "^test\\.(.*)\\.cpp$" "\\1" base_name ${file_name})
-    string(TOLOWER ${base_name} lower_name)
-    set(target_name "test_unit_${lower_name}")
-
-    bakuon_add_test(
-        NAME
-        ${target_name}
-        SOURCES
-        ${file_name}
-        DEPENDS
-        # 白盒：链接 STATIC 变体（导出宏为空，PUBLIC 带来私有 source/ 与 EnTT），
-        # 不能链接 SHARED 的 bakuon::core（bakuon_add_test 会直接报错）。
-        bakuon::core_static
-        # bakuon_add_test 已包含 gtest, gtest_main 加在这可能希望自定义的 main 入口
-        gtest_main
-        LABELS
-        "${module_label}"
-    )
-endforeach()
+#==============================================================================
+# Public-API tests: link ONLY the shared host library (no EnTT include path).
+#==============================================================================
+# add_executable(bakuon_host_api_tests test.host_api.cpp)
+# target_link_libraries(bakuon_host_api_tests PRIVATE bakuon::core GTest::gtest_main)
+# target_compile_definitions(
+#     bakuon_host_api_tests PRIVATE "BAKUON_TEST_PLUGIN_PATH=\"$<TARGET_FILE:bakuon_test_plugin>\""
+# )
+# add_dependencies(bakuon_host_api_tests bakuon_test_plugin)
+# bakuon_apply_warnings(bakuon_host_api_tests)
+# gtest_discover_tests(bakuon_host_api_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS "plugin")

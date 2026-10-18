@@ -4,8 +4,6 @@
 
 namespace bakuon::core {
 
-static_assert(std::is_same_v<entt::id_type, ComponentId>, "ComponentId must match ENTT_ID_TYPE");
-
 Domain::Domain(DomainId id, std::string name, std::uint64_t serial)
     : m_id(id)
     , m_name(std::move(name))

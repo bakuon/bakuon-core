@@ -89,7 +89,7 @@ public:
     {
     }
 
-    std::uint32_t abi_version() const noexcept override { return plugin_abi_version_current; }
+    std::uint32_t abi_version() const noexcept override { return IPlugin::abi_current; }
     IDomain* find_domain(const char* name) noexcept override { return m_world.find(name); }
     IDomain* require_domain(const char* name) noexcept override { return m_world.require(name); }
     IScheduler& scheduler() noexcept override { return m_scheduler; }

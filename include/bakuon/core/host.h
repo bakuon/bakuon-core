@@ -26,7 +26,7 @@ namespace bakuon::core {
 class BAKUON_CORE_API IHost
 {
 public:
-    static constexpr std::uint32_t abi_version_current = 1;
+    static constexpr std::uint32_t abi_current = 1;
 
     [[nodiscard]] virtual std::uint32_t abi_version() const noexcept = 0;
     [[nodiscard]] virtual IWorld& world() noexcept                   = 0;

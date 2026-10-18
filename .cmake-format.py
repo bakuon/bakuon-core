@@ -27,6 +27,16 @@ with section("parse"):
         },
         "set": {
             "flags": ["* OFF", "* ON"]
+        },
+        "generate_export_header":{
+            "kwargs": {
+                "BASE_NAME": "*", 
+                "EXPORT_MACRO_NAME":"*", 
+                "STATIC_DEFINE":"*",
+                "EXPORT_FILE_NAME":"*",
+                "NO_EXPORT_MACRO_NAME":"*",
+                "DEPRECATED_MACRO_NAME":"*",
+            },
         }
     }
 
@@ -72,7 +82,7 @@ with section("format"):
 
     # If a positional argument group contains more than this many arguments, then
     # force it to a vertical layout.
-    max_pargs_hwrap = 4
+    max_pargs_hwrap = 6
 
     # If a cmdline positional group consumes more than this many lines without
     # nesting, then invalidate the layout (and nest)
@@ -118,12 +128,7 @@ with section("format"):
 
     # A list of command names which should always be wrapped
     always_wrap = [
-        "CPMAddPackage"
-        "add_executable",
-        "add_library",
-        "target_link_libraries",
-        "target_include_directories",
-        "install",
+        "CPMAddPackage", "add_executable"
     ]
 
     # If true, the argument lists which are known to be sortable will be sorted

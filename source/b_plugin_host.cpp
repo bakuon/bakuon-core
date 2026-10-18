@@ -1,4 +1,5 @@
 #include "b_plugin_host.h"
+#include "bakuon/core/plugin.h"
 #include <string>
 
 namespace bakuon::core {
@@ -37,14 +38,14 @@ Status PluginHost::load(const PluginModule& m, std::string* out_name) noexcept
     if (m.abi_version == nullptr || m.create == nullptr || m.destroy == nullptr) {
         return Status::invalid_argument;
     }
-    if (m.abi_version() != plugin_abi_version_current) {
+    if (m.abi_version() != IPlugin::abi_current) {
         return Status::abi_mismatch; // refuse before running any plugin code
     }
     IPlugin* plugin = m.create();
     if (plugin == nullptr) {
         return Status::load_failed;
     }
-    if (plugin->abi_version() != plugin_abi_version_current) {
+    if (plugin->abi_version() != IPlugin::abi_current) {
         m.destroy(plugin);
         return Status::abi_mismatch;
     }

@@ -1,43 +1,64 @@
-cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+# project(
+#     core
+#     VERSION 1.0.0
+#     LANGUAGES CXX
+# )
 
-project(
-    core
-    VERSION 1.0.0
-    LANGUAGES CXX
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_include")
+
+#==============================================================================
+# Host implementation objects (packaged into the shared host library in a later step).
+#==============================================================================
+set(OBJECT_TARGET "bakuon_core_obj")
+add_library(
+    ${OBJECT_TARGET} OBJECT
+    b_bakuon.cpp
+    b_domain.cpp
+    b_world.cpp
+    b_scheduler.cpp
+    b_plugin_host.cpp
+    b_module_loader.cpp
+    b_plugin_manager.cpp
+    b_host.cpp
+    b_component_storage.cpp
+    b_component_registry.cpp
 )
+target_include_directories(
+    ${OBJECT_TARGET}
+    PUBLIC ${BAKUON_CORE_ROOT_DIR}/include
+    PRIVATE ${BAKUON_CORE_ROOT_DIR}/source
+)
+target_link_libraries(${OBJECT_TARGET} PRIVATE EnTT::EnTT)
+target_compile_features(${OBJECT_TARGET} PUBLIC cxx_std_20)
+if(CMAKE_DL_LIBS)
+    target_link_libraries(${OBJECT_TARGET} PUBLIC ${CMAKE_DL_LIBS})
+endif()
+target_compile_definitions(${OBJECT_TARGET} PUBLIC BAKUON_CORE_STATIC_DEFINE)
+set_target_properties(${OBJECT_TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# ----------------------------------------------------------------------------
-# 后端依赖（仅内部可见）：EnTT + 必须在「core 与白盒测试」之间保持一致的编译宏。
-# 不起 bakuon:: 别名，也不会出现在 SHARED 库的接口里（PRIVATE 链接）。
-# ----------------------------------------------------------------------------
-add_library(bakuon_core_backend INTERFACE)
-target_link_libraries(bakuon_core_backend INTERFACE EnTT::EnTT)
-target_compile_definitions(bakuon_core_backend INTERFACE ENTT_ID_TYPE=${BAKUON_ID_TYPE})
+bakuon_apply_warnings(${OBJECT_TARGET})
 
-# 白盒测试用的 STATIC 变体只在构建测试时才创建（否则核心库不会被多编译一遍）。
-set(_bakuon_core_with_static "")
-if(BAKUON_BUILD_TESTS)
-    set(_bakuon_core_with_static WITH_STATIC)
+#==============================================================================
+# the host dynamic library: exports only the three C symbols of host.h
+#==============================================================================
+set(SHARED_TARGET "bakuon_core")
+add_library(${SHARED_TARGET} SHARED $<TARGET_OBJECTS:${OBJECT_TARGET}> b_api.cpp)
+add_library(bakuon::core ALIAS ${SHARED_TARGET})
+target_include_directories(
+    ${SHARED_TARGET}
+    PUBLIC ${BAKUON_CORE_ROOT_DIR}/include
+    PRIVATE ${BAKUON_CORE_ROOT_DIR}/source
+)
+target_link_libraries(${SHARED_TARGET} PRIVATE EnTT::EnTT)
+target_compile_features(${SHARED_TARGET} PUBLIC cxx_std_20)
+if(CMAKE_DL_LIBS)
+    target_link_libraries(${SHARED_TARGET} PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
-# 产出：
-#   bakuon::core         SHARED  插件 / 主程序 / 示例链接；只暴露 include/ 与导出头
-#   bakuon::core_static  STATIC  仅白盒测试链接；暴露 source/，导出宏为空
-bakuon_add_module(
-    NAME
-    ${PROJECT_NAME}
-    PATH
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    EXPORT_MACRO
-    "BAKUON_CORE_API" # 头文件中使用的导出宏
-    DEPENDS
-    bakuon_core_backend
-    INCLUDE_DIRS
-    ${BAKUON_ROOT_DIR}/source
-    # 面向消费者的稳定门面头文件根目录：include/bakuon/*.h
-    PUBLIC_INCLUDE_DIRS
-    ${BAKUON_ROOT_DIR}/include
-    ${_bakuon_core_with_static}
-)
+target_compile_definitions(${SHARED_TARGET} PUBLIC BAKUON_CORE_BUILD)
+set_target_properties(${SHARED_TARGET} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
-bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR} ALIAS "core")
+bakuon_apply_warnings(${SHARED_TARGET})
+
+# bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR} ALIAS "core")
