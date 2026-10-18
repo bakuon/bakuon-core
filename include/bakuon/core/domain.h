@@ -62,19 +62,6 @@ public:
     friend constexpr auto operator<=>(const DomainId&, const DomainId&) = default;
     friend constexpr bool operator==(const DomainId&, const DomainId&)  = default;
 
-    [[nodiscard]] static constexpr DomainId from_name(std::string_view name) noexcept
-    {
-        if (name.empty()) {
-            return {};
-        }
-        value_type hash = 0xcbf29ce484222325ULL;
-        for (const char c : name) {
-            hash ^= static_cast<unsigned char>(c);
-            hash *= 0x100000001b3ULL;
-        }
-        return DomainId{hash | NamedBit};
-    }
-
 private:
     value_type m_value{0};
 };

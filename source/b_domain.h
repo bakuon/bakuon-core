@@ -46,6 +46,19 @@ public:
     [[nodiscard]] Registry& registry() { return m_registry; }
     [[nodiscard]] const Registry& registry() const { return m_registry; }
 
+    [[nodiscard]] static constexpr DomainId from_name(std::string_view name) noexcept
+    {
+        if (name.empty()) {
+            return {};
+        }
+        DomainId::value_type hash = 0xcbf29ce484222325ULL;
+        for (const char c : name) {
+            hash ^= static_cast<unsigned char>(c);
+            hash *= 0x100000001b3ULL;
+        }
+        return DomainId{hash | DomainId::NamedBit};
+    }
+
 private:
     friend class World;
 

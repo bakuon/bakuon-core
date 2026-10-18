@@ -90,13 +90,13 @@ const IDomain* World::find(DomainId id) const noexcept
 
 IDomain* World::find(std::string_view name) noexcept
 {
-    IDomain* domain = find(DomainId::from_name(name));
+    IDomain* domain = find(Domain::from_name(name));
     return (domain && domain->name() == name) ? domain : nullptr;
 }
 
 const IDomain* World::find(std::string_view name) const noexcept
 {
-    const IDomain* domain = find(DomainId::from_name(name));
+    const IDomain* domain = find(Domain::from_name(name));
     return (domain && domain->name() == name) ? domain : nullptr;
 }
 
@@ -115,7 +115,7 @@ const IDomain* World::resolve(DomainHandle handle) const noexcept
 IDomain* World::create(std::string_view name, const Initializer& init)
 {
     assertOwnerThread();
-    const DomainId id = DomainId::from_name(name);
+    const DomainId id = Domain::from_name(name);
     if (!id.valid()) {
         throw WorldError("World::create: domain name must not be empty");
     }
@@ -129,7 +129,7 @@ IDomain* World::create(std::string_view name, const Initializer& init)
 IDomain* World::require(std::string_view name, const Initializer& init)
 {
     assertOwnerThread();
-    const DomainId id = DomainId::from_name(name);
+    const DomainId id = Domain::from_name(name);
     if (!id.valid()) {
         throw WorldError("World::require: domain name must not be empty");
     }

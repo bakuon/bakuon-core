@@ -40,7 +40,7 @@ class ComponentsTest : public ::testing::Test
 {
 protected:
     IComponents& comps() { return m_domain.components(); }
-    Domain m_domain{DomainId::from_name("game.test"), "test", 1};
+    Domain m_domain{Domain::from_name("game.test"), "test", 1};
 };
 
 } // namespace
@@ -361,8 +361,8 @@ TEST_F(ComponentsTest, ClearComponentOnlyAffectsOneType)
 
 TEST(ComponentsIsolationTest, TypeTablesAreIndependentPerDomain)
 {
-    Domain a{DomainId::from_name("game.a"), "a", 1};
-    Domain b{DomainId::from_name("game.b"), "b", 2};
+    Domain a{Domain::from_name("game.a"), "a", 1};
+    Domain b{Domain::from_name("game.b"), "b", 2};
     TypedComponent<Position> pos;
     ASSERT_EQ(TypedComponent<Position>::inregister(a.components(), "Position", pos), Status::ok);
     EXPECT_FALSE(b.components().find("Position") != 0);

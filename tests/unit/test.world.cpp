@@ -39,9 +39,9 @@ struct Probe
 
 } // namespace
 
-static_assert(DomainId::from_name("physics").named());
-static_assert(!DomainId::from_name("").valid());
-static_assert(DomainId::from_name("a") != DomainId::from_name("b"));
+static_assert(Domain::from_name("physics").named());
+static_assert(!Domain::from_name("").valid());
+static_assert(Domain::from_name("a") != Domain::from_name("b"));
 
 TEST(WorldTest, RequireCreatesOnDemandAndIsIdempotent)
 {
@@ -54,7 +54,7 @@ TEST(WorldTest, RequireCreatesOnDemandAndIsIdempotent)
     EXPECT_EQ(a, b);
     EXPECT_EQ(world.count(), 1u);
     EXPECT_STREQ(a->name(), "physics");
-    EXPECT_EQ(world.find(DomainId::from_name("physics")), a);
+    EXPECT_EQ(world.find(Domain::from_name("physics")), a);
 }
 
 TEST(WorldTest, CreateReturnsNullptrWhenAlreadyExistsAndThrowsOnEmptyName)
@@ -116,7 +116,7 @@ TEST(WorldTest, HooksFireAndDisconnect)
     });
 
     (void) world.require("x");
-    ASSERT_TRUE(world.destroy(DomainId::from_name("x")) == Status::ok);
+    ASSERT_TRUE(world.destroy(Domain::from_name("x")) == Status::ok);
     EXPECT_EQ(log, (std::vector<std::string>{"created:x", "destroying:x:visible"}));
 
     created.disconnect();
@@ -142,7 +142,7 @@ TEST(WorldTest, ReentrantDestroyOnClosingDomainIsRejected)
         [&](IDomain& d) { nested = world.destroy(d.id()) == Status::ok; });
 
     (void) world.require("r");
-    EXPECT_EQ(world.destroy(DomainId::from_name("r")), Status::ok);
+    EXPECT_EQ(world.destroy(Domain::from_name("r")), Status::ok);
     EXPECT_FALSE(nested);
     EXPECT_EQ(world.count(), 0u);
 }
@@ -174,7 +174,7 @@ TEST(WorldTest, EachToleratesDestroyingOtherDomainsDuringIteration)
     world.each([&](IDomain* d) {
         visited.emplace_back(d->name());
         if (std::strcmp(d->name(), "a") == 0) {
-            (void) world.destroy(DomainId::from_name("b"));
+            (void) world.destroy(Domain::from_name("b"));
         }
     });
     EXPECT_EQ(visited, (std::vector<std::string>{"a", "c"}));

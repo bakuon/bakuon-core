@@ -6,7 +6,7 @@ using namespace bakuon::core;
 
 TEST(DomainTest, CreateDestroy)
 {
-    Domain d(DomainId::from_name("game.test"), "test", 1);
+    Domain d(Domain::from_name("game.test"), "test", 1);
     IDomain& api = d; // exercise through the public interface
 
     EXPECT_EQ(api.abi_version(), IDomain::abi_current);
@@ -26,7 +26,7 @@ TEST(DomainTest, CreateDestroy)
 
 TEST(DomainTest, RecycleAndStaleHandle)
 {
-    Domain d(DomainId::from_name("game.test"), "test", 1);
+    Domain d(Domain::from_name("game.test"), "test", 1);
     const Entity e1 = d.create();
     EXPECT_TRUE(d.destroy(e1));
     const Entity e2 = d.create();
@@ -38,7 +38,7 @@ TEST(DomainTest, RecycleAndStaleHandle)
 
 TEST(DomainTest, NullIsSafe)
 {
-    Domain d(DomainId::from_name("game.test"), "test", 1);
+    Domain d(Domain::from_name("game.test"), "test", 1);
     EXPECT_FALSE(d.alive(null));
     EXPECT_FALSE(d.destroy(null));
     EXPECT_FALSE(d.alive(Entity::make(99, 0)));
@@ -46,7 +46,7 @@ TEST(DomainTest, NullIsSafe)
 
 TEST(DomainTest, Hint)
 {
-    Domain d(DomainId::from_name("game.test"), "test", 1);
+    Domain d(Domain::from_name("game.test"), "test", 1);
     const Entity hint = Entity::make(5, 0);
     const Entity e    = d.create(hint);
     EXPECT_TRUE(e == hint);
@@ -60,7 +60,7 @@ TEST(DomainTest, Hint)
 
 TEST(DomainTest, Clear)
 {
-    Domain d(DomainId::from_name("game.test"), "test", 1);
+    Domain d(Domain::from_name("game.test"), "test", 1);
     const Entity a = d.create();
     const Entity b = d.create();
     d.clear();
@@ -72,8 +72,8 @@ TEST(DomainTest, Clear)
 
 TEST(DomainTest, Isolation)
 {
-    Domain a(DomainId::from_name("game.test.a"), "test a", 1);
-    Domain b(DomainId::from_name("game.test.b"), "test b", 2);
+    Domain a(Domain::from_name("game.test.a"), "test a", 1);
+    Domain b(Domain::from_name("game.test.b"), "test b", 2);
     const Entity ea = a.create();
     EXPECT_TRUE(a.alive(ea));
     EXPECT_FALSE(b.alive(ea));
@@ -81,7 +81,7 @@ TEST(DomainTest, Isolation)
 
 TEST(DomainTest, ExposesComponents)
 {
-    Domain d(DomainId::from_name("game.x"), "x", 1);
+    Domain d(Domain::from_name("game.x"), "x", 1);
     IDomain& api = d;
     EXPECT_EQ(&api.components(), &d.components());
     EXPECT_EQ(api.components().count(), 0u);
