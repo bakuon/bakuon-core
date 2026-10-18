@@ -23,8 +23,8 @@ namespace {
 using Hooks    = detail::WorldHooks;
 using HookList = std::vector<Hooks::Entry> Hooks::*;
 
-Connection addHook(const std::shared_ptr<Hooks>& hooks, HookList list,
-                   World::DomainCallback callback)
+Connection add_hook(const std::shared_ptr<Hooks>& hooks, HookList list,
+                    World::DomainCallback callback)
 {
     const std::size_t id = hooks->nextId++;
     (*hooks.*list).emplace_back(id, std::move(callback));
@@ -40,7 +40,7 @@ Connection addHook(const std::shared_ptr<Hooks>& hooks, HookList list,
     });
 }
 
-void ensureSameName(const IDomain& existing, std::string_view name)
+void ensure_same_name(const IDomain& existing, std::string_view name)
 {
     if (existing.name() != name) {
         throw WorldError("domain id collision: '" + std::string(name) + "' vs existing '"
@@ -120,7 +120,7 @@ IDomain* World::create(std::string_view name, const Initializer& init)
         throw WorldError("World::create: domain name must not be empty");
     }
     if (const IDomain* existing = find(id)) {
-        ensureSameName(*existing, name);
+        ensure_same_name(*existing, name);
         return nullptr;
     }
     return insert(id, std::string(name), init);
@@ -134,7 +134,7 @@ IDomain* World::require(std::string_view name, const Initializer& init)
         throw WorldError("World::require: domain name must not be empty");
     }
     if (IDomain* existing = find(id)) {
-        ensureSameName(*existing, name);
+        ensure_same_name(*existing, name);
         if (existing->closing()) {
             throw WorldError("World::require: domain '" + std::string(name)
                              + "' is being destroyed");
@@ -176,7 +176,7 @@ Status World::destroy(DomainId id)
     return Status::ok; // owned 析构：服务逆序 → Registry
 }
 
-IDomain* World::createAnonymous(std::string label, const Initializer& init)
+IDomain* World::create_anonymous(std::string label, const Initializer& init)
 {
     assertOwnerThread();
     return insert(DomainId{m_nextAnonymous++}, std::move(label), init);
@@ -215,14 +215,14 @@ Domain* World::find_internal(std::string_view name) const noexcept
     return nullptr;
 }
 
-Connection World::domainCreated(DomainCallback callback)
+Connection World::on_domain_created(DomainCallback callback)
 {
-    return addHook(m_hooks, &Hooks::created, std::move(callback));
+    return add_hook(m_hooks, &Hooks::created, std::move(callback));
 }
 
-Connection World::domainDestroying(DomainCallback callback)
+Connection World::on_domain_destroying(DomainCallback callback)
 {
-    return addHook(m_hooks, &Hooks::destroying, std::move(callback));
+    return add_hook(m_hooks, &Hooks::destroying, std::move(callback));
 }
 
 IDomain* World::insert(DomainId id, std::string name, const Initializer& init)

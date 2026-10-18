@@ -26,8 +26,6 @@ option(BAKUON_ENABLE_WARNINGS "启用 -Wall -Wextra / W4 等编译警告" ON)
 option(BAKUON_WARNINGS_AS_ERRORS "将编译警告视为错误" OFF)
 option(BAKUON_INSTALL_SDK "安装头文件与导出 target(打包方案未定，默认关闭)" OFF)
 
-add_definitions(-DBAKUON_BUILD_TESTS -DBAKUON_BUILD_EXAMPLES -DBAKUON_BUILD_SANDBOX_RUNTIME)
-
 # ----------------------------------------------------------------------------
 # C++ 标准通过 target_compile_features(cxx_std_20) 按目标下发（见
 # cmake/BakuonUtils.cmake），刻意不设置全局 CMAKE_CXX_STANDARD， 以免连带影响 vendor 下第三方依赖（如
@@ -36,7 +34,6 @@ add_definitions(-DBAKUON_BUILD_TESTS -DBAKUON_BUILD_EXAMPLES -DBAKUON_BUILD_SAND
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 20)
 
 # 框架内所有静态库都以位置无关代码编译， 以便未来被链接进以共享库/插件形式加载的模块（plugins/ 下的运行时插件）。
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -64,12 +61,12 @@ else()
     set(BAKUON_ID_TYPE "std::uint32_t")
 endif()
 
-# 给 EnTT 注入宏
-add_compile_definitions(ENTT_ID_TYPE=${BAKUON_ID_TYPE})
+# ENTT_ID_TYPE 只属于后端实现，不再全局注入（公共头/插件/示例不应感知 EnTT）；
+# 见 source/CMakeLists.txt 里的 bakuon_core_backend，core 与白盒测试通过它保持一致。
 
 # 生成供插件使用的 CMake 配置文件
 file(
-    WRITE "${CMAKE_BINARY_DIR}/BakuonConfig.cmake"
+    WRITE "${CMAKE_CURRENT_BINARY_DIR}/BakuonConfig.cmake"
     "
     # 这是由核心库工程自动生成的配置文件，请勿手动修改
     set(BAKUON_BUILD_BIT ${CMAKE_SIZEOF_VOID_P})

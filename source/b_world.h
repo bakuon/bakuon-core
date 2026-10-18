@@ -29,7 +29,7 @@ public:
  * @brief 域隔离的多路复用器：按需创建/持有/销毁多个相互独立的 Domain（各自一个 registry）。
  *
  * ## 线程模型
- * create/require/destroy/clear/onDomain* 只能在创建 World 的线程调用（debug 下断言）。
+ * create/require/destroy/clear/on_domain_* 只能在创建 World 的线程调用（debug 下断言）。
  * find/resolve/each 在没有并发拓扑修改时可读。Domain 内部数据不加锁，线程亲和性由调用方决定。
  *
  * ## 引用有效期
@@ -37,7 +37,7 @@ public:
  * 增删无关）。需要跨越"可能被销毁"的边界持有时，存 DomainHandle，用 resolve() 取回。
  *
  * ## 销毁时序
- * destroy(id)：标记 closing → 触发 onDomainDestroying（此时仍可 find）→ 从表中摘除 →
+ * destroy(id)：标记 closing → 触发 on_domain_destroying（此时仍可 find）→ 从表中摘除 →
  * 逆序销毁服务 → 销毁 Container。~World()/clear() 按域创建的逆序销毁。
  * 钩子里可以创建其它域、销毁其它域；对正在销毁的域再次 destroy 返回 false。
  *
@@ -82,7 +82,7 @@ public:
     Status destroy(DomainId id) override;
 
     /// 创建匿名域（典型：每个打开的文档一个），id 由 Workspace 分配；label 仅用于诊断。
-    IDomain* createAnonymous(std::string label = {}, const Initializer& init = {});
+    IDomain* create_anonymous(std::string label = {}, const Initializer& init = {});
 
     /// 逆创建序销毁全部域。
     void clear();
@@ -106,10 +106,10 @@ public:
     }
 
     /// 域已完整构造（含 init）并插入表之后触发
-    [[nodiscard]] Connection domainCreated(DomainCallback callback);
+    [[nodiscard]] Connection on_domain_created(DomainCallback callback);
     /// 域即将销毁时触发，此时域仍完整可用；回调抛出的异常会中止本次销毁并向上传播。
     /// 返回的 Connection 可以比 Workspace 活得更久。
-    [[nodiscard]] Connection domainDestroying(DomainCallback callback);
+    [[nodiscard]] Connection on_domain_destroying(DomainCallback callback);
 
 private:
     IDomain* insert(DomainId id, std::string name, const Initializer& init);

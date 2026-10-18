@@ -117,7 +117,7 @@ public:
         m_dismissing   = nullptr;
     }
 
-    [[nodiscard]] bool isConnected() const noexcept { return static_cast<bool>(m_disconnector); }
+    [[nodiscard]] bool is_connected() const noexcept { return static_cast<bool>(m_disconnector); }
 
 private:
     std::function<void()> m_disconnector;

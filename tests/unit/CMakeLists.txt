@@ -22,11 +22,11 @@ foreach(file_name ${UNIT_TESTS})
         SOURCES
         ${file_name}
         DEPENDS
+        # 白盒：链接 STATIC 变体（导出宏为空，PUBLIC 带来私有 source/ 与 EnTT），
+        # 不能链接 SHARED 的 bakuon::core（bakuon_add_test 会直接报错）。
         bakuon::core_static
         # bakuon_add_test 已包含 gtest, gtest_main 加在这可能希望自定义的 main 入口
         gtest_main
-        INCLUDE_DIRS
-        ${BAKUON_ROOT_DIR}/source
         LABELS
         "${module_label}"
     )

@@ -8,8 +8,10 @@ project(
 
 add_executable(${PROJECT_NAME} main.cpp)
 
+# 主程序 / 示例：只链接 SHARED 的 bakuon::core，仅依赖公共头 + 导出宏（dllimport），
+# 看不到 source/ 与 EnTT。
 target_link_libraries(
     ${PROJECT_NAME}
     PRIVATE bakuon::core
 )
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+bakuon_apply_warnings(${PROJECT_NAME})

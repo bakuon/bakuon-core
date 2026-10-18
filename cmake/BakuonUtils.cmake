@@ -51,7 +51,7 @@ function(bakuon_apply_targets_folder _dir)
 
         # 计算相对路径
         if(TARGET_SOURCE_DIR)
-            file(RELATIVE_PATH REL_DIR ${CMAKE_SOURCE_DIR} ${TARGET_SOURCE_DIR})
+            file(RELATIVE_PATH REL_DIR ${BAKUON_ROOT_DIR} ${TARGET_SOURCE_DIR})
 
             get_target_property(TARGET_TYPE ${target} TYPE)
             # message(STATUS "[${PROJECT_NAME}] Found target: (${TARGET_TYPE}, ${target}, ${TARGET_SOURCE_DIR})")
@@ -74,6 +74,8 @@ endfunction()
 # 统一入口，避免 bakuon_add_module 与 bakuon_add_amalgamated_module 各写一份、逐渐漂移。
 # ============================================================================
 function(_bakuon_apply_common_target_settings TARGET_NAME)
+    # PUBLIC：公共头里已经用了 C++20（domain.h 的 defaulted operator<=>），
+    # 所以链接 bakuon::core / bakuon::core_static 的目标必须以 >= C++20 编译。
     target_compile_features(${TARGET_NAME} PUBLIC cxx_std_20)
     set_target_properties(${TARGET_NAME} PROPERTIES CXX_EXTENSIONS OFF)
     bakuon_apply_warnings(${TARGET_NAME})
@@ -131,116 +133,144 @@ function(bakuon_install_module TARGET_NAME PUBLIC_HEADER_DIR)
 endfunction()
 
 # ============================================================================
-# 定义非聚合模块注册函数
-# 每个 .cpp 独立编译单元，适合日常开发（增量编译快、可读性好）。
+# bakuon_add_module —— 注册宿主库（host library），同一份源码产出两个目标：
+#
+#   bakuon_<NAME>          SHARED  bakuon::<NAME>
+#       给「插件 / 主程序 / 示例」用。消费者只能看到 PUBLIC_INCLUDE_DIRS（公共头）和
+#       生成的导出头，看不到 INCLUDE_DIRS（私有 source/）和 DEPENDS（EnTT）。
+#       编译本库时 DEFINE_SYMBOL（BAKUON_<NAME>_BUILD）生效 -> 导出宏展开为 dllexport；
+#       消费者不带该宏 -> 展开为 dllimport。
+#
+#   bakuon_<NAME>_static   STATIC  bakuon::<NAME>_static   （仅 WITH_STATIC 时创建）
+#       给「白盒单元测试」用。测试要直接 #include 私有头、调用未导出的内部符号，
+#       这些符号在 DLL 里是 hidden / 没有 dllexport，链 SHARED 必然找不到符号。
+#       这里把同一批 .cpp 重新编译一遍，并 PUBLIC 定义 BAKUON_<NAME>_STATIC_DEFINE，
+#       导出宏展开为空（无 dllimport/dllexport）；私有 source/ 与后端依赖也是 PUBLIC，
+#       传递给测试。
+#
+# 为什么不再用「一份 OBJECT 对象库同时喂给 SHARED 和 STATIC」：
+#   导出宏是编译期决定的（dllexport / dllimport / 空）。SHARED 需要 dllexport，STATIC
+#   需要空，同一份 .obj 不可能同时满足，必须按目标各编译一次。代价：开启测试时核心库
+#   会编译两遍；BAKUON_BUILD_TESTS=OFF 时不创建 static 目标，没有额外开销。
+#
+# 参数：
+#   NAME                模块名（core -> bakuon_core / bakuon::core）
+#   PATH                私有实现目录（递归 GLOB .h/.cpp）
+#   PUBLIC_INCLUDE_DIRS 公共头根目录（include/），消费者可见
+#   INCLUDE_DIRS        私有头目录（source/），仅本库内部；static 目标 PUBLIC 暴露给白盒测试
+#   DEPENDS             实现依赖（EnTT 等），shared: PRIVATE；static: PUBLIC
+#   EXPORT_MACRO        导出宏名，默认 BAKUON_<NAME>_API
+#   WITH_STATIC         同时创建白盒测试用的 static 目标
 # ============================================================================
 function(bakuon_add_module)
     cmake_parse_arguments(
         ARG
-        ""
+        "WITH_STATIC"
         "NAME;PATH;EXPORT_MACRO"
         "DEPENDS;INCLUDE_DIRS;PUBLIC_INCLUDE_DIRS"
         ${ARGN}
     )
 
+    foreach(_required NAME PATH PUBLIC_INCLUDE_DIRS)
+        if(NOT ARG_${_required})
+            message(FATAL_ERROR "bakuon_add_module: ${_required} 是必填参数")
+        endif()
+    endforeach()
+
     set(MODULE_NAME ${ARG_NAME})
-    set(MODULE_PATH ${ARG_PATH})
-    set(AMALGAM_H "${MODULE_PATH}/${MODULE_NAME}.h")
+    set(SHARED_TARGET "bakuon_${MODULE_NAME}")
+    set(STATIC_TARGET "bakuon_${MODULE_NAME}_static")
     string(TOUPPER ${MODULE_NAME} UPPER_NAME)
 
-    # 默认生成导出宏名称，例如：BAKUON_CORE_EXPORTS
     if(NOT ARG_EXPORT_MACRO)
-        set(ARG_EXPORT_MACRO "${UPPER_NAME}_EXPORT")
+        set(ARG_EXPORT_MACRO "BAKUON_${UPPER_NAME}_API")
     endif()
 
-    # 收集源文件
-    bakuon_glob_module_files("${MODULE_PATH}" ALL_HEADERS ALL_SOURCES)
-
-    # “聚合入口头”（MODULE_NAME.h 作为整个模块唯一的公共门面）是可选约定，不是强制要求：
-    # 只有当它真实存在时才作为 PUBLIC 源加入、并从 PRIVATE 头文件列表中去重；模块内其余头文件
-    # 一律按 "gui/b_xxx.h" 这种模块前缀路径被直接 #include，不需要也不应该被强制归纳进一个总头文件。
-    #
-    # 注意：这里不排除 MODULE_NAME.cpp —— 每个 .cpp 独立编译单元是本函数的核心语义，
-    # 一个模块下允许存在恰好与模块同名的普通实现文件（例如 plugin/plugin.cpp），它必须被正常编译，
-    # “同名 .cpp 即聚合入口”的约定只属于 bakuon_add_amalgamated_module。
-    if(EXISTS "${AMALGAM_H}")
-        set(PUBLIC_AMALGAM_HEADER "${AMALGAM_H}")
-        list(REMOVE_ITEM ALL_HEADERS "${AMALGAM_H}")
-    else()
-        set(PUBLIC_AMALGAM_HEADER "")
-    endif()
-
-    if(NOT ALL_SOURCES AND NOT PUBLIC_AMALGAM_HEADER)
-        message(FATAL_ERROR "bakuon_add_module(${MODULE_NAME}): 在 ${MODULE_PATH} 下没有找到任何 .cpp 文件，"
+    bakuon_glob_module_files("${ARG_PATH}" ALL_HEADERS ALL_SOURCES)
+    if(NOT ALL_SOURCES)
+        message(FATAL_ERROR "bakuon_add_module(${MODULE_NAME}): 在 ${ARG_PATH} 下没有找到任何 .cpp 文件，"
                             "无法创建库；该模块尚无实现代码前不要 add_subdirectory() 它。"
         )
     endif()
 
-    # 1. 创建 OBJECT 对象库（核心编译单元，只编译一次）
-    set(OBJ_TARGET "${MODULE_NAME}_objects")
-    add_library(${OBJ_TARGET} OBJECT ${ALL_SOURCES} ${ALL_HEADERS})
-    # 配置对象库的包含路径
-    target_include_directories(
-        ${OBJ_TARGET}
-        PUBLIC ${ARG_PUBLIC_INCLUDE_DIRS}
-        PRIVATE ${ARG_INCLUDE_DIRS}
-    )
-    if(ARG_DEPENDS)
-        target_link_libraries(${OBJ_TARGET} PUBLIC ${ARG_DEPENDS})
-    endif()
-    # 让对象库在 Windows 下自动生成位置无关代码（为动态库做准备）
-    set_target_properties(${OBJ_TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    # 公共头目录：仅在构建树内有效（装 SDK 包的路径等 BAKUON_INSTALL_SDK 落地时再处理）
+    set(_public_dirs ${ARG_PUBLIC_INCLUDE_DIRS})
+    list(TRANSFORM _public_dirs PREPEND "$<BUILD_INTERFACE:")
+    list(TRANSFORM _public_dirs APPEND ">")
 
-    # 2. 创建 SHARED 动态库（供插件使用）
-    set(SHARED_TARGET "${MODULE_NAME}")
-    add_library(${SHARED_TARGET} SHARED $<TARGET_OBJECTS:${OBJ_TARGET}>)
-    add_library(bakuon::${SHARED_TARGET} ALIAS ${SHARED_TARGET})
-    # 必须在 generate_export_header 之前设置
+    # ── 1. SHARED：给插件 / 主程序 ───────────────────────────────────────────
+    add_library(${SHARED_TARGET} SHARED ${ALL_SOURCES} ${ALL_HEADERS})
+    add_library(bakuon::${MODULE_NAME} ALIAS ${SHARED_TARGET})
+
+    # DEFINE_SYMBOL 必须在 generate_export_header 之前设置。
+    # CMake 会只对「本 SHARED 目标自己的编译」加 -DBAKUON_<NAME>_BUILD，
+    # 绝不能再做 target_compile_definitions(PUBLIC BAKUON_<NAME>_BUILD)：那会泄漏给消费者，
+    # 让插件/主程序也把导入符号当成 dllexport。
     set_target_properties(${SHARED_TARGET} PROPERTIES DEFINE_SYMBOL BAKUON_${UPPER_NAME}_BUILD)
+
+    # 导出头是公共头 api.h 所依赖的生成文件：api.h 里写的是 #include "core/b_core_export.h"，
+    # 因此目录布局必须保持为 <EXPORT_DIR>/<NAME>/b_<NAME>_export.h。
     set(EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_include")
     set(EXPORT_HEADER "${EXPORT_DIR}/${MODULE_NAME}/b_${MODULE_NAME}_export.h")
     generate_export_header(
         ${SHARED_TARGET}
         BASE_NAME
-        ${MODULE_NAME}
+        BAKUON_${UPPER_NAME}
         EXPORT_MACRO_NAME
         ${ARG_EXPORT_MACRO}
-        EXPORT_FILE_NAME
-        ${EXPORT_HEADER}
+        NO_EXPORT_MACRO_NAME
+        BAKUON_${UPPER_NAME}_NO_EXPORT
         DEPRECATED_MACRO_NAME
         BAKUON_${UPPER_NAME}_DEPRECATED
+        STATIC_DEFINE
+        BAKUON_${UPPER_NAME}_STATIC_DEFINE
+        EXPORT_FILE_NAME
+        "${EXPORT_HEADER}"
     )
-    # 关键：仅在编译 SHARED 目标时激活导出宏
-    target_compile_definitions(${SHARED_TARGET} PUBLIC BAKUON_${UPPER_NAME}_BUILD)
-    # BUILD_INTERFACE 即可：生成头只在构建这份源码时用得到，装 SDK 包的场景等
-    # BAKUON_INSTALL_SDK 真正打开时再一并处理导出头的安装路径（见 bakuon_install_module()）。
-    target_include_directories(${SHARED_TARGET} PUBLIC $<BUILD_INTERFACE:${EXPORT_DIR}>)
-    # 传递公共头文件目录给使用者（如插件）
-    target_include_directories(${SHARED_TARGET} INTERFACE ${ARG_PUBLIC_INCLUDE_DIRS})
-    # 别名与输出名称规整
-    set_target_properties(${SHARED_TARGET} PROPERTIES OUTPUT_NAME ${SHARED_TARGET})
+
+    target_include_directories(
+        ${SHARED_TARGET}
+        PUBLIC ${_public_dirs} "$<BUILD_INTERFACE:${EXPORT_DIR}>"
+        PRIVATE ${ARG_INCLUDE_DIRS}
+    )
+    # 实现依赖（EnTT 等）PRIVATE：不传递给消费者，保证插件/主程序编译期根本看不到 EnTT。
+    target_link_libraries(${SHARED_TARGET} PRIVATE ${ARG_DEPENDS} ${CMAKE_DL_LIBS})
+
     set_target_properties(
         ${SHARED_TARGET}
-        PROPERTIES CXX_VISIBILITY_PRESET hidden
+        PROPERTIES OUTPUT_NAME ${SHARED_TARGET}
+                   CXX_VISIBILITY_PRESET hidden
                    VISIBILITY_INLINES_HIDDEN ON
-                   # SOVERSION 用于 Linux/macOS 的 SONAME；早期版本号还会频繁
-                   # 变动，先固定在与模块 VERSION 的主版本一致即可。
+                   # SOVERSION 用于 Linux/macOS 的 SONAME；早期版本号还会频繁变动，
+                   # 先固定为主版本号。
                    SOVERSION ${PROJECT_VERSION_MAJOR}
     )
-
-    # 3. 创建 STATIC 静态库（供单元测试使用）
-    set(STATIC_TARGET "${MODULE_NAME}_static")
-    add_library(${STATIC_TARGET} STATIC $<TARGET_OBJECTS:${OBJ_TARGET}>)
-    add_library(bakuon::${STATIC_TARGET} ALIAS ${STATIC_TARGET})
-    target_include_directories(${STATIC_TARGET} PUBLIC $<BUILD_INTERFACE:${EXPORT_DIR}>)
-    # 传递公共头文件给测试项目
-    target_include_directories(${STATIC_TARGET} INTERFACE ${ARG_PUBLIC_INCLUDE_DIRS})
-    # 别名与输出名称规整（避免与动态库重名冲突，可加后缀或放入不同目录）
-    set_target_properties(${STATIC_TARGET} PROPERTIES OUTPUT_NAME "${STATIC_TARGET}")
-
+    _bakuon_apply_common_target_settings(${SHARED_TARGET})
     bakuon_install_module(${SHARED_TARGET} "${ARG_PUBLIC_INCLUDE_DIRS}")
 
-    message(STATUS "[Build] ${MODULE_NAME} (Non unity build, ${CMAKE_CURRENT_LIST_FILE})")
+    message(STATUS "[Build] ${SHARED_TARGET} SHARED (${CMAKE_CURRENT_LIST_FILE})")
+
+    # ── 2. STATIC：给白盒单元测试 ────────────────────────────────────────────
+    if(ARG_WITH_STATIC)
+        add_library(${STATIC_TARGET} STATIC ${ALL_SOURCES} ${ALL_HEADERS})
+        add_library(bakuon::${MODULE_NAME}_static ALIAS ${STATIC_TARGET})
+
+        # 导出宏展开为空；PUBLIC：所有链接本目标的测试也必须带上，否则测试 TU 里会
+        # 重新出现 dllimport，与 static 库里的无修饰符号对不上。
+        target_compile_definitions(${STATIC_TARGET} PUBLIC BAKUON_${UPPER_NAME}_STATIC_DEFINE)
+
+        # 白盒：私有头目录和实现依赖都是 PUBLIC，测试可以直接 #include "b_xxx.h"。
+        target_include_directories(
+            ${STATIC_TARGET} PUBLIC ${ARG_PUBLIC_INCLUDE_DIRS} "${EXPORT_DIR}" ${ARG_INCLUDE_DIRS}
+        )
+        target_link_libraries(${STATIC_TARGET} PUBLIC ${ARG_DEPENDS} ${CMAKE_DL_LIBS})
+
+        # 与 SHARED 的 import library（Windows 下 bakuon_<NAME>.lib）区分开，避免重名。
+        set_target_properties(${STATIC_TARGET} PROPERTIES OUTPUT_NAME ${STATIC_TARGET})
+        _bakuon_apply_common_target_settings(${STATIC_TARGET})
+
+        message(STATUS "[Build] ${STATIC_TARGET} STATIC, white-box tests only (${CMAKE_CURRENT_LIST_FILE})")
+    endif()
 endfunction()
 
 # ============================================================================
@@ -263,7 +293,7 @@ function(bakuon_add_amalgamated_module)
     set(AMALGAM_H "${MODULE_PATH}/${MODULE_NAME}.h")
     set(AMALGAM_CPP "${MODULE_PATH}/${MODULE_NAME}.cpp")
 
-    _bakuon_glob_module_files("${MODULE_PATH}" ALL_HEADERS ALL_SOURCES)
+    bakuon_glob_module_files("${MODULE_PATH}" ALL_HEADERS ALL_SOURCES)
 
     # Unity Build 下 MODULE_NAME.h / MODULE_NAME.cpp 是硬性约定的聚合入口，必须存在，
     # 因此从常规列表中剔除，分别按“唯一公共头”和“唯一编译单元”特殊处理。
@@ -338,7 +368,7 @@ endfunction()
 #   PATH            插件实现代码所在目录，递归 GLOB 其下 .h / .cpp
 #   CATEGORY        插件分类子目录（如 gui / core），决定输出到
 #                   ${CMAKE_BINARY_DIR}/plugins/<CATEGORY>/ 下；不传则归入 "misc"
-#   DEPENDS         该插件需要链接的库，通常至少要有 bakuon::core
+#   DEPENDS         除 bakuon::core 以外该插件还需要链接的库（bakuon::core 自动链接）
 #   INCLUDE_DIRS    额外的 PRIVATE 头文件搜索路径
 #   METADATA        可选，插件 JSON 元数据文件路径（对应 b_plugin.h 顶部注释里的
 #                   MetaData 示例格式）；若提供，会在插件构建后原样拷贝一份到
@@ -350,7 +380,7 @@ endfunction()
 #       NAME example_plugin
 #       PATH ${CMAKE_CURRENT_SOURCE_DIR}
 #       CATEGORY gui
-#       DEPENDS bakuon::gui
+#       DEPENDS Qt6::Core
 #       METADATA ${CMAKE_CURRENT_SOURCE_DIR}/example_plugin.json)
 #
 # ----------------------------------------------------------------------------
@@ -388,7 +418,7 @@ function(bakuon_add_plugin)
         set(ARG_CATEGORY "misc")
     endif()
 
-    _bakuon_glob_module_files("${PLUGIN_PATH}" ALL_HEADERS ALL_SOURCES)
+    bakuon_glob_module_files("${PLUGIN_PATH}" ALL_HEADERS ALL_SOURCES)
 
     if(NOT ALL_SOURCES)
         message(FATAL_ERROR "bakuon_add_plugin(${PLUGIN_NAME}): 在 ${PLUGIN_PATH} 下没有找到任何 .cpp 文件。")
@@ -402,11 +432,15 @@ function(bakuon_add_plugin)
 
     target_include_directories(${PLUGIN_NAME} PRIVATE ${PLUGIN_PATH} ${ARG_INCLUDE_DIRS})
 
-    if(ARG_DEPENDS)
-        target_link_libraries(${PLUGIN_NAME} PRIVATE ${ARG_DEPENDS})
-    endif()
+    # 插件只依赖宿主 SHARED 库（bakuon::core）：由它带来公共头目录和导出头，
+    # 插件看到的 BAKUON_CORE_API 是 dllimport；私有 source/ 与 EnTT 对插件不可见。
+    # 白盒的 bakuon::core_static 不允许出现在插件里（会把第二份宿主状态链进插件）。
+    target_link_libraries(${PLUGIN_NAME} PRIVATE bakuon::core ${ARG_DEPENDS})
 
     _bakuon_apply_common_target_settings(${PLUGIN_NAME})
+
+    # 默认隐藏全部符号，只有 BAKUON_PLUGIN_API 标注的三个 C 入口对外可见。
+    set_target_properties(${PLUGIN_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
 
     # 按分类输出到统一的 plugins/ 目录下，与源码里 plugins/<CATEGORY>/ 的物理布局对应；
     # LIBRARY_OUTPUT_DIRECTORY 对应 Linux/macOS 的 .so/.dylib，RUNTIME_OUTPUT_DIRECTORY
@@ -483,6 +517,22 @@ function(bakuon_add_test)
         target_link_libraries(${ARG_NAME} PRIVATE Qt::Test) # 自动追加测试模块
     endif()
 
+    # 白盒测试必须链接 STATIC 变体：SHARED 里私有符号是 hidden / 未导出的，会链接失败。
+    foreach(_dep IN LISTS ARG_DEPENDS)
+        if(TARGET ${_dep})
+            get_target_property(_aliased ${_dep} ALIASED_TARGET)
+            if(_aliased)
+                set(_real ${_aliased})
+            else()
+                set(_real ${_dep})
+            endif()
+            get_target_property(_type ${_real} TYPE)
+            if(_type STREQUAL "SHARED_LIBRARY")
+                message(FATAL_ERROR "bakuon_add_test(${ARG_NAME}): 不能链接动态库 ${_dep}，" "白盒测试请链接 bakuon::core_static")
+            endif()
+        endif()
+    endforeach()
+
     target_link_libraries(${ARG_NAME} PRIVATE gtest ${ARG_DEPENDS})
     if(ARG_INCLUDE_DIRS)
         target_include_directories(${ARG_NAME} PRIVATE ${ARG_INCLUDE_DIRS})
@@ -502,5 +552,7 @@ function(bakuon_add_test)
     endif()
 
     # 利用 gtest_discover_tests 注入 CTest 属性
-    gtest_discover_tests(${ARG_NAME} PROPERTIES LABELS "${test_labels}")
+    # PRE_TEST：在 ctest 运行时才枚举用例，而不是构建后立刻运行 exe
+    # （交叉编译、或 exe 依赖的 DLL 此刻还不在搜索路径上时，构建期枚举会失败）。
+    gtest_discover_tests(${ARG_NAME} DISCOVERY_MODE PRE_TEST PROPERTIES LABELS "${test_labels}")
 endfunction()

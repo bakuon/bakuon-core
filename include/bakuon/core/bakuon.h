@@ -13,7 +13,6 @@
  ******************************************************************************
  */
 
-// #include "b_bakuon.h" // IWYU pragma: export
 #include <bakuon/core/api.h>
 
 #include <string_view>

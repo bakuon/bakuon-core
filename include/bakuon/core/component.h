@@ -342,11 +342,11 @@ private:
 
 } // namespace bakuon::core
 
-template<>
-struct std::hash<bakuon::core::ComponentId>
-{
-    std::size_t operator()(const bakuon::core::ComponentId& id) const noexcept
-    {
-        return std::hash<std::size_t>{}(id);
-    }
-};
+// template<>
+// struct std::hash<bakuon::core::ComponentId>
+// {
+//     std::size_t operator()(const bakuon::core::ComponentId& id) const noexcept
+//     {
+//         return std::hash<std::size_t>{}(id);
+//     }
+// };

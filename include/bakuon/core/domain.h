@@ -17,7 +17,6 @@
  * from one domain with another.
  */
 
-#include "api.h"
 #include <bakuon/core/api.h>
 #include <bakuon/core/component.h>
 #include <bakuon/core/entity.h>
@@ -39,12 +38,8 @@
 
 namespace bakuon::core {
 
-/// 必须等于 ENTT_ID_TYPE（默认 uint32_t）
-/// 当前根据平台配置来设置（见根 CMakeList.txt BAKUON_ID_TYPE）
-// using ComponentId = std::size_t;
-
 /**
- * @brief 域标识：命名域 = FNV-1a 64(name) | 最高位；匿名域 = Workspace 分配的计数器值。
+ * @brief 域标识：命名域 = FNV-1a 64(name) | 最高位；匿名域分配的计数器值。
  * @note 最高位把两类 id 空间彻底隔开，命名域之间的哈希碰撞由 Workspace 在创建时
  *       比对名字检出。名字大小写敏感。0 为无效值。
  */
@@ -85,7 +80,7 @@ private:
 };
 
 /// 弱句柄：id + serial。域被销毁（哪怕随后同名重建）后 resolve() 一律返回 nullptr。
-class BAKUON_PLUGIN_API DomainHandle
+class BAKUON_CORE_API DomainHandle
 {
 public:
     constexpr DomainHandle() noexcept = default;

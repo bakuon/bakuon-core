@@ -53,7 +53,7 @@ TEST(WorldTest, RequireCreatesOnDemandAndIsIdempotent)
     IDomain* b = world.require("physics");
     EXPECT_EQ(a, b);
     EXPECT_EQ(world.count(), 1u);
-    EXPECT_EQ(a->name(), "physics");
+    EXPECT_STREQ(a->name(), "physics");
     EXPECT_EQ(world.find(DomainId::from_name("physics")), a);
 }
 
@@ -85,7 +85,7 @@ TEST(WorldTest, HandleGoesStaleAfterDestroyEvenIfRecreatedWithSameName)
 
     ASSERT_TRUE(world.destroy(old.id()) == Status::ok);
     EXPECT_EQ(world.resolve(old), nullptr);
-    EXPECT_FALSE(world.destroy(old.id()) != Status::ok) << "重复销毁应返回 false";
+    EXPECT_FALSE(world.destroy(old.id()) == Status::ok) << "重复销毁应返回 false";
 
     IDomain* reborn = world.require("doc");
     EXPECT_EQ(world.resolve(old), nullptr) << "同名重建不应让旧 handle 复活";
@@ -96,8 +96,8 @@ TEST(WorldTest, HandleGoesStaleAfterDestroyEvenIfRecreatedWithSameName)
 TEST(WorldTest, AnonymousDomainsGetDistinctNonNamedIds)
 {
     World world;
-    IDomain* a = world.createAnonymous("doc-1");
-    IDomain* b = world.createAnonymous("doc-2");
+    IDomain* a = world.create_anonymous("doc-1");
+    IDomain* b = world.create_anonymous("doc-2");
     EXPECT_NE(a->id(), b->id());
     EXPECT_FALSE(a->id().named());
     EXPECT_TRUE(a->id().valid());
@@ -108,9 +108,9 @@ TEST(WorldTest, HooksFireAndDisconnect)
 {
     std::vector<std::string> log;
     World world;
-    Connection created = world.domainCreated(
+    Connection created = world.on_domain_created(
         [&](IDomain& d) { log.push_back("created:" + std::string(d.name())); });
-    Connection destroying = world.domainDestroying([&](IDomain& d) {
+    Connection destroying = world.on_domain_destroying([&](IDomain& d) {
         log.push_back("destroying:" + std::string(d.name())
                       + (world.find(d.id()) ? ":visible" : ":hidden"));
     });
@@ -129,7 +129,7 @@ TEST(WorldTest, ConnectionMayOutliveWorld)
     Connection conn;
     {
         World world;
-        conn = world.domainCreated([](IDomain&) {});
+        conn = world.on_domain_created([](IDomain&) {});
     }
     conn.disconnect(); // 不应崩溃（ASan 下验证无 use-after-free）
 }
@@ -138,7 +138,7 @@ TEST(WorldTest, ReentrantDestroyOnClosingDomainIsRejected)
 {
     World world;
     bool nested     = true;
-    Connection conn = world.domainDestroying(
+    Connection conn = world.on_domain_destroying(
         [&](IDomain& d) { nested = world.destroy(d.id()) == Status::ok; });
 
     (void) world.require("r");
@@ -151,7 +151,7 @@ TEST(WorldTest, ClearDestroysInReverseCreationOrder)
 {
     std::vector<std::string> log;
     World world;
-    Connection conn = world.domainDestroying(
+    Connection conn = world.on_domain_destroying(
         [&](IDomain& d) { log.push_back(std::string(d.name())); });
 
     (void) world.require("a");
