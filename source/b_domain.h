@@ -16,6 +16,10 @@ namespace bakuon::core {
 [[nodiscard]] Registry& registry_of(IDomain& domain);
 [[nodiscard]] const Registry& registry_of(const IDomain& domain);
 
+// 引擎内部的类型安全事件总线（entt::dispatcher）。插件禁止使用本路径。
+[[nodiscard]] Dispatcher& dispatcher_of(IDomain& domain);
+[[nodiscard]] const Dispatcher& dispatcher_of(const IDomain& domain);
+
 /// 重命名为 Domain
 class Domain final : public IDomain
 {
@@ -35,6 +39,11 @@ public:
 
     [[nodiscard]] Registry& registry() { return m_registry; }
     [[nodiscard]] const Registry& registry() const { return m_registry; }
+
+    /// 本域专属的 entt::dispatcher。与 registry 同寿，域销毁时订阅一并失效。
+    /// 仅引擎编译单元使用；跨 DLL 插件请走 World::events()（IEventBus）。
+    [[nodiscard]] Dispatcher& dispatcher() noexcept { return m_dispatcher; }
+    [[nodiscard]] const Dispatcher& dispatcher() const noexcept { return m_dispatcher; }
 
     [[nodiscard]] Entity create() override { return m_registry.create(); }
     bool destroy(Entity entity) override;
@@ -153,6 +162,7 @@ private:
     // 声明顺序 = 构造顺序；析构时 m_records 先于 m_registry 销毁。
     // 不要为了"看起来整齐"调整这两个成员的相对顺序。
     Registry m_registry;
+    Dispatcher m_dispatcher;
     std::unordered_map<ComponentId, Record> m_records;
     std::unordered_map<std::string, ComponentId> m_names;
     std::string m_error;

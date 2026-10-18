@@ -1,5 +1,9 @@
 #include "b_world.h"
 
+#include "b_event.h"
+#include "b_scheduler.h"
+#include "b_service.h"
+
 #include <algorithm>
 
 namespace bakuon::core {
@@ -60,16 +64,74 @@ void notify(const Hooks& hooks, HookList list, Domain& domain)
 
 World::World() noexcept
     : m_hooks(std::make_shared<detail::WorldHooks>())
+    , m_events(std::make_unique<EventBus>())
+    , m_services(std::make_unique<ServiceProvider>())
+    , m_scheduler(std::make_unique<Scheduler>(*this))
 {
 }
 
 World::~World()
 {
+    // 先拆调度器：System::on_detach 仍可 resolve 到存活 Domain。
+    m_scheduler.reset();
     try {
         clear();
     } catch (...) {
         // 析构中不能抛。钩子抛异常时放弃剩余通知，由 m_domains 的成员析构兜底回收。
     }
+    // m_events 随成员析构自动释放。
+}
+
+IScheduler& World::scheduler() noexcept
+{
+    return *m_scheduler;
+}
+
+const IScheduler& World::scheduler() const noexcept
+{
+    return *m_scheduler;
+}
+
+IEventBus& World::events() noexcept
+{
+    return *m_events;
+}
+
+const IEventBus& World::events() const noexcept
+{
+    return *m_events;
+}
+
+IServiceProvider& World::services() noexcept
+{
+    return *m_services;
+}
+
+const IServiceProvider& World::services() const noexcept
+{
+    return *m_services;
+}
+
+Dispatcher& World::dispatcher() noexcept
+{
+    return m_dispatcher;
+}
+
+const Dispatcher& World::dispatcher() const noexcept
+{
+    return m_dispatcher;
+}
+
+void World::tick(float dt)
+{
+    assertOwnerThread();
+    m_scheduler->tick(dt);
+}
+
+void World::tick_domain(IDomain& domain, float dt)
+{
+    assertOwnerThread();
+    m_scheduler->tick_domain(domain, dt);
 }
 
 Domain* World::find(DomainId id) noexcept

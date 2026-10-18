@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bakuon/core/connection.h>
+
 #include <functional>
 #include <utility>
 
@@ -44,7 +46,7 @@ namespace bakuon::core {
  * 两者互斥：无论 Connection 最终是被断开、还是被 dismiss()，都只会有其中
  * 一条路径真正执行，另一条会被清空、不再触发。
  */
-class Connection
+class Connection : public IConnection
 {
 public:
     Connection() = default;
@@ -86,10 +88,10 @@ public:
         return *this;
     }
 
-    ~Connection() { disconnect(); }
+    ~Connection() override { disconnect(); }
 
     /// 主动断开连接；幂等，重复调用/对一个从未连接过的对象调用都是安全的空操作。
-    void disconnect()
+    void disconnect() override
     {
         if (m_disconnector) {
             m_disconnector();
@@ -108,7 +110,7 @@ public:
      * 之后无法再通过这个 Connection 对象重新断开它，这是有意的：dismiss() 的
      * 语义就是"我确定这个订阅应该和它的宿主活得一样久，不需要再被单独管理"。
      */
-    void dismiss() noexcept
+    void dismiss() noexcept override
     {
         if (m_dismissing) {
             m_dismissing();
@@ -117,7 +119,10 @@ public:
         m_dismissing   = nullptr;
     }
 
-    [[nodiscard]] bool isConnected() const noexcept { return static_cast<bool>(m_disconnector); }
+    [[nodiscard]] bool isConnected() const noexcept override
+    {
+        return static_cast<bool>(m_disconnector);
+    }
 
 private:
     std::function<void()> m_disconnector;

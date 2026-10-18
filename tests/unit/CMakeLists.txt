@@ -5,7 +5,7 @@ endif()
 # 基础模块标签
 set(module_label "unit")
 
-set(UNIT_TESTS "test.bakuon.cpp" "test.domain.cpp" "test.world.cpp")
+set(UNIT_TESTS "test.bakuon.cpp" "test.domain.cpp" "test.world.cpp" "test.system.cpp" "test.event.cpp" "test.service.cpp")
 
 foreach(file_name ${UNIT_TESTS})
     # 从文件名提取 TestName（例如：BakuonTest -> test_unit_bakuon）

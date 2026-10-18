@@ -48,6 +48,16 @@ const Registry& registry_of(const IDomain& domain)
     return static_cast<const Domain&>(domain).registry();
 }
 
+Dispatcher& dispatcher_of(IDomain& domain)
+{
+    return static_cast<Domain&>(domain).dispatcher();
+}
+
+const Dispatcher& dispatcher_of(const IDomain& domain)
+{
+    return static_cast<const Domain&>(domain).dispatcher();
+}
+
 bool bakuon_native_components_follow_entity(IDomain& domain)
 {
     struct Armor
