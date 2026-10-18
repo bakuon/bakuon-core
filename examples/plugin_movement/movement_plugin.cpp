@@ -43,9 +43,19 @@ public:
 
     void update(const FrameContext& ctx, IDomain&) noexcept override
     {
-        const float dt = static_cast<float>(ctx.delta_seconds);
         // Looking up other components while iterating is fine; adding/removing is not.
-        // TODO: m_velocity.span(ComponentArray<example::Velocity> &out);
+        ComponentArray<example::Velocity> vel;
+        if (m_velocity.span(vel) != Status::ok) {
+            return;
+        }
+        const float dt = static_cast<float>(ctx.delta_seconds);
+        for (std::size_t i = 0; i < vel.count; ++i) {
+            if (example::Position* p = m_position.get(vel.entities[i])) {
+                p->x += vel.data[i].x * dt;
+                p->y += vel.data[i].y * dt;
+                p->z += vel.data[i].z * dt;
+            }
+        }
     }
 
     void release() noexcept override { delete this; }
