@@ -54,7 +54,7 @@ int run(IHost& host, const char* plugin_path)
     }
 
     for (std::uint64_t frame = 0; frame < 10; ++frame) { // 10 x 0.1 s = 1 s
-        if (host.world().run_frame(FrameContext{0.1, frame}) != Status::ok) {
+        if (host.world().run_frame(FrameContext{frame, 0.1}) != Status::ok) {
             return 1;
         }
     }

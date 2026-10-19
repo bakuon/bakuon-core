@@ -32,8 +32,8 @@
  * 插件只传 Entity、组件名和对象字节；引擎按名字哈希把每一种组件放进
  * 独立的 entt::basic_registry<Entity> 存储，实体销毁时一并释放。
  *
- * 迭代顺序不稳定。each 的回调里禁止 create / destroy / emplace / remove /
- * unregister，只允许改组件字节。结构修改放到遍历结束后。
+ * 迭代顺序不稳定。IComponents::for_each / each 的回调里禁止 create / destroy /
+ * emplace / remove / unregister，只允许改组件字节。结构修改放到遍历结束后。
  */
 
 namespace bakuon::core {
@@ -99,7 +99,8 @@ class BAKUON_CORE_API IDomain
 public:
     /// Bump when the vtable layout changes. Plugins compare their compiled
     /// constant with abi_version() before using the interface.
-    static constexpr std::uint32_t abi_current = 1;
+    /// v2: IComponents replaced span() with replace()/for_each()/each().
+    static constexpr std::uint32_t abi_current = 2;
 
     [[nodiscard]] virtual std::uint32_t abi_version() const noexcept = 0;
     [[nodiscard]] virtual DomainId id() const noexcept               = 0;

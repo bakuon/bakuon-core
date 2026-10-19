@@ -39,7 +39,7 @@ TEST(HostApiTest, LoadRunUnloadThroughExportedApi)
     EXPECT_STREQ(host->plugin_name_at(0), "test_plugin");
 
     for (int i = 0; i < 5; ++i) {
-        ASSERT_EQ(host->world().run_frame(FrameContext{0.016, static_cast<std::uint64_t>(i)}),
+        ASSERT_EQ(host->world().run_frame(FrameContext{static_cast<std::uint64_t>(i), 0.016}),
                   Status::ok);
     }
 
@@ -47,10 +47,15 @@ TEST(HostApiTest, LoadRunUnloadThroughExportedApi)
     ASSERT_TRUE(d != nullptr);
     TypedComponent<Counter> c;
     ASSERT_EQ(TypedComponent<Counter>::bind(d->components(), "TestCounter", c), Status::ok);
-    ComponentArray<Counter> arr;
-    ASSERT_EQ(c.span(arr), Status::ok);
-    ASSERT_EQ(arr.count, 1u);
-    EXPECT_EQ(arr.data[0].value, 5);
+    std::int32_t value = -1;
+    std::size_t seen   = 0;
+    ASSERT_EQ(c.for_each([&](Entity, Counter& counter) {
+        value = counter.value;
+        ++seen;
+    }),
+              Status::ok);
+    ASSERT_EQ(seen, 1u);
+    EXPECT_EQ(value, 5);
 
     ASSERT_EQ(host->unload_plugin("test_plugin"), Status::ok);
     EXPECT_FALSE(d->components().find("TestCounter").valid());

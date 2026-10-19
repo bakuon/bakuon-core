@@ -31,11 +31,16 @@ std::int32_t read_counter(IWorld& world)
     if (TypedComponent<Counter>::bind(d->components(), "TestCounter", c) != Status::ok) {
         return -1;
     }
-    ComponentArray<Counter> arr;
-    if (c.span(arr) != Status::ok || arr.count != 1) {
+    std::int32_t value = -1;
+    std::size_t seen   = 0;
+    if (c.for_each([&](Entity, Counter& counter) {
+            value = counter.value;
+            ++seen;
+        }) != Status::ok
+        || seen != 1) {
         return -1;
     }
-    return arr.data[0].value;
+    return value;
 }
 
 class PluginLoadingTest : public ::testing::Test
@@ -82,7 +87,7 @@ TEST_F(PluginLoadingTest, LoadRunUnload)
     EXPECT_EQ(read_counter(m_host.world()), 0);
 
     for (int i = 0; i < 3; ++i) {
-        ASSERT_EQ(m_host.world().run_frame(FrameContext{0.016, static_cast<std::uint64_t>(i)}),
+        ASSERT_EQ(m_host.world().run_frame(FrameContext{static_cast<std::uint64_t>(i), 0.016}),
                   Status::ok);
     }
     EXPECT_EQ(read_counter(m_host.world()), 3);

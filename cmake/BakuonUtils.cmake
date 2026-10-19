@@ -45,7 +45,7 @@ function(bakuon_apply_targets_folder _dir)
 
         # 计算相对路径
         if(TARGET_SOURCE_DIR)
-            file(RELATIVE_PATH REL_DIR ${BAKUON_ROOT_DIR} ${TARGET_SOURCE_DIR})
+            file(RELATIVE_PATH REL_DIR ${BAKUON_CORE_ROOT_DIR} ${TARGET_SOURCE_DIR})
 
             get_target_property(TARGET_TYPE ${target} TYPE)
             # message(STATUS "[${PROJECT_NAME}] Found target: (${TARGET_TYPE}, ${target}, ${TARGET_SOURCE_DIR})")

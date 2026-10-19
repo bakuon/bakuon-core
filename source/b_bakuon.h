@@ -1,7 +1,6 @@
 #pragma once
 
 #include "b_component_registry.h" // IWYU pragma: keep
-#include "b_component_storage.h"  // IWYU pragma: keep
 #include "b_connection.h"         // IWYU pragma: keep
 #include "b_domain.h"             // IWYU pragma: keep
 #include "b_entity.h"             // IWYU pragma: keep

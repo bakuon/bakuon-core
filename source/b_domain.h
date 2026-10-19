@@ -32,6 +32,9 @@ public:
     [[nodiscard]] std::uint64_t serial() const noexcept override { return m_serial; }
     [[nodiscard]] bool closing() const noexcept override { return m_closing; }
 
+    /// Structural changes are rejected while an IComponents iteration is active:
+    /// create() returns null, destroy()/clear() do nothing. Callbacks may only
+    /// read/write component payloads.
     [[nodiscard]] Entity create() noexcept override;
     [[nodiscard]] Entity create(Entity hint) noexcept override;
     bool destroy(Entity entity) noexcept override;
@@ -45,6 +48,11 @@ public:
     /// Internal access only. Never expose across the ABI.
     [[nodiscard]] Registry& registry() { return m_registry; }
     [[nodiscard]] const Registry& registry() const { return m_registry; }
+
+    /// 本域专属的 entt::dispatcher，与 entt::registry 同寿，域销毁时订阅一并失效。
+    /// 仅引擎编译单元使用；跨 DLL 插件请走 World::events()（IEventBus）。
+    [[nodiscard]] Dispatcher& dispatcher() noexcept { return m_dispatcher; }
+    [[nodiscard]] const Dispatcher& dispatcher() const noexcept { return m_dispatcher; }
 
     [[nodiscard]] static constexpr DomainId from_name(std::string_view name) noexcept
     {
@@ -68,9 +76,11 @@ private:
     std::uint64_t m_serial;
     bool m_closing = false;
 
-    // 声明顺序 = 构造顺序；析构时 m_records 先于 m_registry 销毁。
+    // 声明顺序 = 构造顺序；析构时 m_components 先于 m_registry 销毁，
+    // 这样每个 TypeEntry 还能在 registry 存活时 reset() 自己的 storage。
     // 不要为了"看起来整齐"调整这两个成员的相对顺序。
     Registry m_registry;
+    Dispatcher m_dispatcher;
     ComponentRegistry m_components;
     std::size_t m_alive_count{0};
 };

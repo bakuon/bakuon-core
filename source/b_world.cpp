@@ -62,18 +62,25 @@ void notify(const Hooks& hooks, HookList list, IDomain& domain)
 } // namespace
 
 World::World() noexcept
-    : m_scheduler(*this)
-    , m_hooks(std::make_shared<detail::WorldHooks>())
+    : m_hooks(std::make_shared<detail::WorldHooks>())
+    // , m_events(std::make_unique<EventBus>())
+    // , m_services(std::make_unique<ServiceProvider>())
+    , m_scheduler(std::make_unique<Scheduler>(*this))
 {
 }
 
 World::~World()
 {
+    // 先拆调度器：System::on_detach 仍可 resolve 到存活 Domain。
+    m_scheduler.reset();
+
     try {
         clear();
     } catch (...) {
         // 析构中不能抛。钩子抛异常时放弃剩余通知，由 m_domains 的成员析构兜底回收。
     }
+
+    // m_events 随成员析构自动释放。
 }
 
 IDomain* World::find(DomainId id) noexcept
@@ -160,7 +167,7 @@ Status World::destroy(DomainId id)
     }
 
     Domain& domain = *it->second;
-    if (m_scheduler.uses_domain(domain.name())) {
+    if (m_scheduler->uses_domain(domain.name())) {
         return Status::busy;
     }
     domain.m_closing = true; // mark busy
@@ -188,6 +195,10 @@ IDomain* World::create_anonymous(std::string label, const Initializer& init)
 void World::clear()
 {
     assertOwnerThread();
+    // Systems keep their owning domain alive (destroy() reports busy). Release them
+    // first: their release() hooks only delete themselves, while the domains are still
+    // valid. Without this, the loop below would keep picking the same in-use domain.
+    m_scheduler->clear();
     // 逆创建序：后创建的域可能观察/依赖先创建的域。
     // 每轮重新挑 serial 最大者，钩子里新建/销毁域也不会让遍历失效。
     for (;;) {

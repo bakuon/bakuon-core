@@ -17,7 +17,7 @@ project(
 file(
     GLOB_RECURSE _public_headers CONFIGURE_DEPENDS
     RELATIVE "${BAKUON_CORE_ROOT_DIR}/include"
-    "${BAKUON_ROOT_DIR}/include/*.h"
+    "${BAKUON_CORE_ROOT_DIR}/include/*.h"
 )
 
 set(_public_headers_cpp_content "")
@@ -32,8 +32,8 @@ add_library(bakuon_public_headers_check OBJECT "${CMAKE_CURRENT_BINARY_DIR}/publ
 target_link_libraries(bakuon_public_headers_check PRIVATE bakuon::core)
 bakuon_apply_warnings(bakuon_public_headers_check)
 
-add_test(NAME public_headers_no_entt COMMAND ${CMAKE_COMMAND} -DPUBLIC_DIR=${BAKUON_ROOT_DIR}/include -P
-                                             ${BAKUON_CMAKE_DIR}/check_no_entt.cmake
+add_test(NAME public_headers_no_entt COMMAND ${CMAKE_COMMAND} -DPUBLIC_DIR=${BAKUON_CORE_ROOT_DIR}/include -P
+                                             ${BAKUON_CORE_CMAKE_DIR}/check_no_entt.cmake
 )
 set_tests_properties(public_headers_no_entt PROPERTIES LABELS "all;unit")
 

@@ -35,13 +35,7 @@ public:
 
     void update(const FrameContext&, IDomain&) noexcept override
     {
-        ComponentArray<Counter> arr;
-        if (m_counter.span(arr) != Status::ok) {
-            return;
-        }
-        for (std::size_t i = 0; i < arr.count; ++i) {
-            arr.data[i].value += 1;
-        }
+        (void) m_counter.for_each([](Entity, Counter& counter) { counter.value += 1; });
     }
 
     void release() noexcept override { delete this; }

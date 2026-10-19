@@ -84,6 +84,6 @@ TEST(DomainTest, ExposesComponents)
     Domain d(Domain::from_name("game.x"), "x", 1);
     IDomain& api = d;
     EXPECT_EQ(&api.components(), &d.components());
-    EXPECT_EQ(api.components().count(), 0u);
-    EXPECT_EQ(api.abi_version(), 1u);
+    EXPECT_EQ(api.components().type_count(), 0u);
+    EXPECT_EQ(api.abi_version(), 2u);
 }

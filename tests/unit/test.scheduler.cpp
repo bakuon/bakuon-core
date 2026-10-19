@@ -1,4 +1,5 @@
 #include "b_world.h"
+#include "bakuon/core/domain.h"
 #include "bakuon/core/system.h"
 
 #include <gtest/gtest.h>
@@ -142,7 +143,7 @@ using Names = std::vector<std::string>;
 
 TEST_F(SchedulerTest, PhasesRunInOrder)
 {
-    ASSERT_EQ(add("r", Phase::render), Status::ok);
+    ASSERT_EQ(add("f", Phase::flush), Status::ok);
     ASSERT_EQ(add("u", Phase::update), Status::ok);
     ASSERT_EQ(add("pre", Phase::pre_update), Status::ok);
     ASSERT_EQ(add("post", Phase::post_update), Status::ok);
@@ -277,7 +278,7 @@ TEST_F(SchedulerTest, DomainInUseCannotBeDestroyed)
 TEST_F(SchedulerTest, SystemReceivesDomainAndFrameContext)
 {
     ASSERT_EQ(add("a"), Status::ok);
-    ASSERT_EQ(m_world.run_frame(FrameContext{0.5, 7}), Status::ok);
+    ASSERT_EQ(m_world.run_frame(FrameContext{7, 0.5}), Status::ok);
     EXPECT_DOUBLE_EQ(m_shared.last_dt, 0.5);
     EXPECT_EQ(m_shared.last_frame, 7u);
     EXPECT_TRUE(m_shared.last_domain == m_world.find("main"));

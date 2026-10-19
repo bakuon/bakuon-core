@@ -14,9 +14,9 @@ Domain::Domain(DomainId id, std::string name, std::uint64_t serial)
 
 Domain::~Domain()
 {
-    // 先销毁其他
-    // ...
-    // 随后 Registry 才被销毁
+    // m_components is destroyed before m_registry (member order): every TypeEntry
+    // resets its named storage while the Registry is still alive. Registry's own
+    // destructor then releases the engine-owned storages.
 }
 
 std::uint32_t Domain::abi_version() const noexcept
@@ -26,6 +26,9 @@ std::uint32_t Domain::abi_version() const noexcept
 
 Entity Domain::create() noexcept
 {
+    if (m_components.iterating()) {
+        return Entity::null();
+    }
     try {
         const Entity e = m_registry.create();
         ++m_alive_count;
@@ -37,6 +40,9 @@ Entity Domain::create() noexcept
 
 Entity Domain::create(Entity hint) noexcept
 {
+    if (m_components.iterating()) {
+        return Entity::null();
+    }
     if (hint.is_null()) {
         return create();
     }
@@ -51,12 +57,17 @@ Entity Domain::create(Entity hint) noexcept
 
 bool Domain::destroy(Entity entity) noexcept
 {
+    // Structural edits invalidate an active for_each()/each() iteration.
+    if (m_components.iterating()) {
+        return false;
+    }
     // Guard first: destroying an invalid entity is undefined in the backend.
     if (entity.is_null() || !m_registry.valid(entity)) {
         return false;
     }
     try {
-        m_components.erase_entity(entity);
+        // The Registry owns the component storages: destroy() erases this entity
+        // from every one of them, running each ComponentSlot destructor.
         m_registry.destroy(entity);
     } catch (...) {
         return false;
@@ -72,8 +83,12 @@ bool Domain::alive(Entity entity) const noexcept
 
 void Domain::clear() noexcept
 {
+    if (m_components.iterating()) {
+        return;
+    }
     try {
-        m_components.clear_all();
+        // Destroys every entity and all attached component instances. Registrations
+        // and their (now empty) named storages survive.
         m_registry.clear();
         m_alive_count = 0;
     } catch (...) {

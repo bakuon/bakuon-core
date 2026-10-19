@@ -21,7 +21,6 @@ add_library(
     b_module_loader.cpp
     b_plugin_manager.cpp
     b_host.cpp
-    b_component_storage.cpp
     b_component_registry.cpp
 )
 target_include_directories(

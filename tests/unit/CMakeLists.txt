@@ -20,7 +20,6 @@ bakuon_apply_warnings(bakuon_test_plugin)
 add_executable(
     bakuon_core_tests
     test.bakuon.cpp
-    test.component_storage.cpp
     test.components.cpp
     test.domain.cpp
     test.entity.cpp

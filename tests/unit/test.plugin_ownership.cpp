@@ -59,7 +59,7 @@ public:
             return s;
         }
 
-        if (N == 0) {
+        if constexpr (N == 0) {
             TypedComponent<Thing> plain;
             s = TypedComponent<Thing>::bind(d->components(), "Plain", plain);
             if (s != Status::ok) {
@@ -67,10 +67,11 @@ public:
             }
             g_entity = d->create();
             return plain.add(g_entity, Thing{42});
+        } else {
+            g_obs.foreign_unregister = d->components().unregister(hid);
+            g_obs.sees_peer_entity   = d->alive(g_entity);
+            return Status::ok;
         }
-        g_obs.foreign_unregister = d->components().unregister(hid);
-        g_obs.sees_peer_entity   = d->alive(g_entity);
-        return Status::ok;
     }
 
     void on_unload(IPluginContext&) noexcept override {} // deliberately forgets everything

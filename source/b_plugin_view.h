@@ -65,22 +65,36 @@ public:
     {
         return m_inner.describe(id, out);
     }
-    std::size_t count() const noexcept override { return m_inner.count(); }
-    ComponentId at(std::size_t index) const noexcept override { return m_inner.at(index); }
+    std::size_t type_count() const noexcept override { return m_inner.type_count(); }
+    ComponentId type_at(std::size_t index) const noexcept override
+    {
+        return m_inner.type_at(index);
+    }
 
     Status emplace(Entity e, ComponentId id, const void* init, void** out_ptr) noexcept override
     {
         return m_inner.emplace(e, id, init, out_ptr);
     }
+    Status replace(Entity e, ComponentId id, const void* bytes) noexcept override
+    {
+        return m_inner.replace(e, id, bytes);
+    }
     Status remove(Entity e, ComponentId id) noexcept override { return m_inner.remove(e, id); }
     bool has(Entity e, ComponentId id) const noexcept override { return m_inner.has(e, id); }
     void* get(Entity e, ComponentId id) noexcept override { return m_inner.get(e, id); }
-    const void* get(Entity e, ComponentId id) const noexcept override { return m_inner.get(e, id); }
+    const void* get_const(Entity e, ComponentId id) const noexcept override
+    {
+        return m_inner.get_const(e, id);
+    }
     std::size_t count(ComponentId id) const noexcept override { return m_inner.count(id); }
     Status clear(ComponentId id) noexcept override { return m_inner.clear(id); }
-    Status span(ComponentId id, ComponentSpan* out) noexcept override
+    Status for_each(ComponentId id, void* user, EachFn fn) noexcept override
     {
-        return m_inner.span(id, out);
+        return m_inner.for_each(id, user, fn);
+    }
+    Status each(const ComponentId* ids, std::uint32_t count, void* user, EachFn fn) noexcept override
+    {
+        return m_inner.each(ids, count, user, fn);
     }
 
     /// Unregisters the types this plugin created that carry code pointers into its module.

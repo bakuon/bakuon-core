@@ -87,9 +87,9 @@ public:
     /// 逆创建序销毁全部域。
     void clear();
 
-    IScheduler& scheduler() noexcept override { return m_scheduler; }
-    Status build_schedule() noexcept override { return m_scheduler.build(); }
-    Status run_frame(const FrameContext& ctx) noexcept override { return m_scheduler.run(ctx); }
+    IScheduler& scheduler() noexcept override { return *m_scheduler; }
+    Status build_schedule() noexcept override { return m_scheduler->build(); }
+    Status run_frame(const FrameContext& ctx) noexcept override { return m_scheduler->run(ctx); }
 
     /// True if `domain` is still owned by this world and was created with `serial`.
     [[nodiscard]] bool is_live(const Domain* domain, std::uint64_t serial) const noexcept;
@@ -124,12 +124,21 @@ private:
     }
 
 private:
+    /// 声明顺序 = 构造顺序；析构逆序。
+    /// Scheduler 必须在 Domain 表之后声明，以便 ~World 先拆 Scheduler（此时 resolve 仍可用），
+    /// 再 clear Domain，最后拆 EventBus。
     entt::dense_map<DomainId, std::unique_ptr<Domain>> m_domains;
-    Scheduler m_scheduler;
     std::shared_ptr<detail::WorldHooks> m_hooks;
     std::uint64_t m_nextSerial           = 1;
     DomainId::value_type m_nextAnonymous = 1;
     std::thread::id m_ownerThread        = std::this_thread::get_id();
+
+    // 应用级原生事件 / 插件总线 / 服务表 / 调度器 ...
+    Dispatcher m_dispatcher;
+    /// 为以后扩展占位
+    // std::unique_ptr<EventBus> m_events;
+    // std::unique_ptr<ServiceProvider> m_services;
+    std::unique_ptr<Scheduler> m_scheduler;
 };
 
 } // namespace bakuon::core

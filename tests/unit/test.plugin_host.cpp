@@ -32,6 +32,7 @@ public:
     {
     }
     std::uint32_t abi_version() const noexcept override { return abi_current; }
+    void describe(SystemDesc& d) const override { d.name = m_name.c_str(); }
     void update(const FrameContext&, IDomain&) noexcept override { ev("update:" + m_name); }
     void release() noexcept override
     {
@@ -68,7 +69,7 @@ public:
             s->release();
             return st;
         }
-        if (N == 1) { // a plugin must not be able to remove another plugin's system
+        if constexpr (N == 1) { // a plugin must not be able to remove another plugin's system
             const Status r = ctx.scheduler().remove_system("sys0");
             ev(r == Status::not_found ? "intrude:denied" : "intrude:allowed");
         }

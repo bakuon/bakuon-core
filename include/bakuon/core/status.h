@@ -25,6 +25,7 @@ enum class [[nodiscard]] Status : std::int32_t {
     unsupported        = 14, ///< e.g. non-native SystemKind
     abi_mismatch       = 15,
     load_failed        = 16,
+    callback_failed    = 17, ///< a for_each()/each() callback threw; iteration stopped
 };
 
 [[nodiscard]] constexpr bool succeeded(Status s) noexcept

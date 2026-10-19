@@ -34,6 +34,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# ComponentId is a 32-bit FNV-1a value and doubles as the EnTT storage id.
+# Keep the backend on its 32-bit default on every platform so the public id and
+# the internal storage id are the same value. See include/bakuon/core/component.h.
+add_compile_definitions(ENTT_ID_TYPE=std::uint32_t)
+
 if(MSVC)
     # 强制当前目标程序在运行时将进程代码页（ACP）视为 UTF-8
     add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/utf-8>")

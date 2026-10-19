@@ -26,13 +26,7 @@ cpmaddpackage(
     EXCLUDE_FROM_ALL YES
 )
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(BAKUON_ID_TYPE "std::uint64_t")
-else()
-    set(BAKUON_ID_TYPE "std::uint32_t")
-endif()
-target_compile_definitions(bakuon_core_vendor INTERFACE ENTT_ID_TYPE=${BAKUON_ID_TYPE})
+# EnTT's id_type is pinned to std::uint32_t in the top-level CMakeLists.txt:
+# ComponentId is a 32-bit FNV-1a value and doubles as the EnTT storage id.
 
 target_link_libraries(bakuon_core_vendor INTERFACE EnTT::EnTT)
-
-# bakuon_apply_targets_folder(${CMAKE_CURRENT_LIST_DIR} ALIAS "vendor")

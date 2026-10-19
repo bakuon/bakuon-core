@@ -44,18 +44,14 @@ public:
     void update(const FrameContext& ctx, IDomain&) noexcept override
     {
         // Looking up other components while iterating is fine; adding/removing is not.
-        ComponentArray<example::Velocity> vel;
-        if (m_velocity.span(vel) != Status::ok) {
-            return;
-        }
         const float dt = static_cast<float>(ctx.delta_seconds);
-        for (std::size_t i = 0; i < vel.count; ++i) {
-            if (example::Position* p = m_position.get(vel.entities[i])) {
-                p->x += vel.data[i].x * dt;
-                p->y += vel.data[i].y * dt;
-                p->z += vel.data[i].z * dt;
+        (void) m_velocity.for_each([&](Entity entity, example::Velocity& velocity) {
+            if (example::Position* position = m_position.get(entity)) {
+                position->x += velocity.x * dt;
+                position->y += velocity.y * dt;
+                position->z += velocity.z * dt;
             }
-        }
+        });
     }
 
     void release() noexcept override { delete this; }
@@ -83,8 +79,8 @@ public:
                                                                   &kDefaultPosition,
                                                                   component_flag_editor_visible
                                                                       | component_flag_serializable);
-        pd.serializer = &position_serialize;
-        Status s      = comps.inregister(pd, nullptr);
+        pd.serializer    = &position_serialize;
+        Status s         = comps.inregister(pd, nullptr);
         if (s != Status::ok) {
             return s;
         }
