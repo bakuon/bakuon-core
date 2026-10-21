@@ -79,8 +79,8 @@ public:
                                                                   &kDefaultPosition,
                                                                   component_flag_editor_visible
                                                                       | component_flag_serializable);
-        pd.serializer    = &position_serialize;
-        Status s         = comps.inregister(pd, nullptr);
+        pd.serializer = &position_serialize;
+        Status s      = comps.inregister(pd, nullptr);
         if (s != Status::ok) {
             return s;
         }
