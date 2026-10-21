@@ -8,37 +8,6 @@
 
 using namespace bakuon::core;
 
-namespace {
-
-struct Position
-{
-    float x = 0.f;
-    float y = 0.f;
-};
-
-/// 记录"析构时 Registry 是否还活着"——用来钉住服务先于 Container 销毁、且按逆序销毁。
-template<int N>
-struct Probe
-{
-    Probe(std::vector<std::string>& log, Registry& registry, Entity entity)
-        : m_log(log)
-        , m_registry(registry)
-        , m_entity(entity)
-    {
-    }
-    ~Probe()
-    {
-        m_log.push_back("~Probe" + std::to_string(N)
-                        + (m_registry.valid(m_entity) ? ":registry-alive" : ":registry-dead"));
-    }
-
-    std::vector<std::string>& m_log;
-    Registry& m_registry;
-    Entity m_entity;
-};
-
-} // namespace
-
 static_assert(Domain::from_name("physics").named());
 static_assert(!Domain::from_name("").valid());
 static_assert(Domain::from_name("a") != Domain::from_name("b"));
@@ -47,7 +16,7 @@ TEST(WorldTest, RequireCreatesOnDemandAndIsIdempotent)
 {
     World world;
     EXPECT_EQ(world.count(), 0u);
-    EXPECT_EQ(world.find("physics"), nullptr);
+    EXPECT_EQ(world.find_by_name("physics"), nullptr);
 
     IDomain* a = world.require("physics");
     IDomain* b = world.require("physics");
@@ -71,7 +40,7 @@ TEST(WorldTest, DomainAddressIsStableAcrossGrowth)
     World world;
     IDomain* first = world.require("d0");
     for (int i = 1; i < 200; ++i) {
-        (void) world.require("d" + std::to_string(i));
+        (void) world.require(std::string("d" + std::to_string(i)).c_str());
     }
     EXPECT_EQ(world.count(), 200u);
     EXPECT_EQ(world.require("d0"), first);
@@ -81,7 +50,7 @@ TEST(WorldTest, HandleGoesStaleAfterDestroyEvenIfRecreatedWithSameName)
 {
     World world;
     const DomainHandle old = world.require("doc")->handle();
-    ASSERT_EQ(world.resolve(old), world.find("doc"));
+    ASSERT_EQ(world.resolve(old), world.require("doc"));
 
     ASSERT_TRUE(world.destroy(old.id()) == Status::ok);
     EXPECT_EQ(world.resolve(old), nullptr);
@@ -178,4 +147,52 @@ TEST(WorldTest, EachToleratesDestroyingOtherDomainsDuringIteration)
         }
     });
     EXPECT_EQ(visited, (std::vector<std::string>{"a", "c"}));
+}
+
+namespace {
+
+int g_raw_initializer_calls = 0;
+
+void raw_initializer(IDomain&)
+{
+    ++g_raw_initializer_calls;
+}
+
+struct CallbackProbe
+{
+    int calls{0};
+};
+
+void counted_initializer(void* user, IDomain&)
+{
+    ++static_cast<CallbackProbe*>(user)->calls;
+}
+
+void counted_hook(void* user, IDomain&)
+{
+    ++static_cast<CallbackProbe*>(user)->calls;
+}
+
+} // namespace
+
+TEST(WorldTest, CallbackAdaptersAcceptLambdasAndFunctionPointers)
+{
+    World world;
+
+    int lambda_calls = 0;
+    ASSERT_NE(world.create("lambda-domain", [&](IDomain&) { ++lambda_calls; }), nullptr);
+    EXPECT_EQ(lambda_calls, 1);
+
+    g_raw_initializer_calls = 0;
+    ASSERT_NE(world.create("raw-domain", &raw_initializer), nullptr);
+    EXPECT_EQ(g_raw_initializer_calls, 1);
+
+    CallbackProbe probe;
+    ASSERT_NE(world.create("callback-domain", DomainCallback{&probe, &counted_initializer}),
+              nullptr);
+    EXPECT_EQ(probe.calls, 1);
+
+    Connection conn = world.on_domain_created(DomainCallback{&probe, &counted_hook});
+    (void) world.require("hook-domain");
+    EXPECT_EQ(probe.calls, 2); // counted_initializer + counted_hook
 }

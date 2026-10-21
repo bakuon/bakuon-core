@@ -141,7 +141,7 @@ protected:
 TEST_F(OwnershipTest, HookedTypeIsRemovedOnUnloadEvenIfThePluginForgot)
 {
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<0>>()), Status::ok);
-    IDomain* main = m_world.find("main");
+    IDomain* main = m_world.find_by_name("main");
     ASSERT_TRUE(main != nullptr);
     EXPECT_TRUE(main->components().find("Hooked").valid());
     EXPECT_TRUE(main->components().find("Plain").valid());
@@ -158,7 +158,7 @@ TEST_F(OwnershipTest, DataOnlyTypesKeepTheirDataAndReloadIsIdempotent)
     const Entity first = g_entity;
     ASSERT_EQ(m_host.unload("owner0"), Status::ok);
 
-    IDomain* main = m_world.find("main");
+    IDomain* main = m_world.find_by_name("main");
     ASSERT_TRUE(main != nullptr);
     TypedComponent<Thing> plain;
     ASSERT_EQ(TypedComponent<Thing>::bind(main->components(), "Plain", plain), Status::ok);
@@ -174,7 +174,7 @@ TEST_F(OwnershipTest, SecondRegistrarDoesNotOwnTheType)
 {
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<0>>()), Status::ok);
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<1>>()), Status::ok);
-    IDomain* main = m_world.find("main");
+    IDomain* main = m_world.find_by_name("main");
     ASSERT_TRUE(main != nullptr);
 
     ASSERT_EQ(m_host.unload("owner1"), Status::ok);
@@ -188,16 +188,16 @@ TEST_F(OwnershipTest, PluginCannotUnregisterForeignTypes)
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<0>>()), Status::ok);
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<1>>()), Status::ok);
     EXPECT_EQ(g_obs.foreign_unregister, Status::not_found);
-    EXPECT_TRUE(m_world.find("main")->components().find("Hooked").valid());
+    EXPECT_TRUE(m_world.find_by_name("main")->components().find("Hooked").valid());
 }
 
 TEST_F(OwnershipTest, PluginsGetDistinctViewsOfTheSameDomain)
 {
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<0>>()), Status::ok);
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<1>>()), Status::ok);
-    EXPECT_TRUE(g_obs.same_view);                   // find/require agree within one plugin
-    EXPECT_NE(g_obs.view[0], g_obs.view[1]);        // one view per plugin
-    EXPECT_NE(g_obs.view[0], m_world.find("main")); // never the raw domain
+    EXPECT_TRUE(g_obs.same_view);                           // find/require agree within one plugin
+    EXPECT_NE(g_obs.view[0], g_obs.view[1]);                // one view per plugin
+    EXPECT_NE(g_obs.view[0], m_world.find_by_name("main")); // never the raw domain
     EXPECT_STREQ(g_obs.view[0]->name(), "main");
     EXPECT_TRUE(g_obs.sees_peer_entity); // but they share the same data
 }
@@ -205,7 +205,7 @@ TEST_F(OwnershipTest, PluginsGetDistinctViewsOfTheSameDomain)
 TEST_F(OwnershipTest, UnloadAfterTheDomainWasDestroyedIsSafe)
 {
     ASSERT_EQ(m_host.load(make_module<OwnerPlugin<0>>()), Status::ok);
-    ASSERT_EQ(m_world.destroy("main"), Status::ok); // no systems: allowed
+    ASSERT_EQ(m_world.destroy_by_name("main"), Status::ok); // no systems: allowed
     EXPECT_EQ(m_host.unload("owner0"),
               Status::ok); // must not touch the dead domain (run under ASan)
 }
@@ -213,7 +213,7 @@ TEST_F(OwnershipTest, UnloadAfterTheDomainWasDestroyedIsSafe)
 TEST_F(OwnershipTest, FailedLoadRollsBackHookedTypes)
 {
     EXPECT_EQ(m_host.load(make_module<FailingPlugin>()), Status::load_failed);
-    IDomain* main = m_world.find("main");
+    IDomain* main = m_world.find_by_name("main");
     ASSERT_TRUE(main != nullptr);
     EXPECT_FALSE(main->components().find("HookedFail").valid());
 }

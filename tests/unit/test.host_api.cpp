@@ -43,7 +43,7 @@ TEST(HostApiTest, LoadRunUnloadThroughExportedApi)
                   Status::ok);
     }
 
-    IDomain* d = host->world().find("main");
+    IDomain* d = host->world().find_by_name("main");
     ASSERT_TRUE(d != nullptr);
     TypedComponent<Counter> c;
     ASSERT_EQ(TypedComponent<Counter>::bind(d->components(), "TestCounter", c), Status::ok);

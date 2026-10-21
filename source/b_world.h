@@ -9,9 +9,9 @@
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
-#include <string>
-#include <string_view>
 #include <thread>
+#include <type_traits>
+#include <utility>
 
 namespace bakuon::core {
 
@@ -48,6 +48,11 @@ public:
     using Initializer    = IWorld::Initializer;
     using DomainCallback = IWorld::DomainCallback;
 
+    // Bring the header-only lambda/function-pointer adapters from IWorld into this
+    // overload set; the virtual overrides below still handle DomainCallback values.
+    using IWorld::create;
+    using IWorld::require;
+
     World() noexcept;
     ~World();
 
@@ -64,25 +69,30 @@ public:
     [[nodiscard]] bool contains(DomainId id) const noexcept override { return find(id) != nullptr; }
     [[nodiscard]] std::size_t count() const noexcept override { return m_domains.size(); }
     [[nodiscard]] IDomain* find(DomainId id) noexcept override;
-    [[nodiscard]] const IDomain* find(DomainId id) const noexcept override;
-    [[nodiscard]] IDomain* find(std::string_view name) noexcept override;
-    [[nodiscard]] const IDomain* find(std::string_view name) const noexcept override;
+    [[nodiscard]] const IDomain* find(DomainId id) const noexcept;
+    [[nodiscard]] IDomain* find_by_name(const char* name) noexcept override;
     [[nodiscard]] IDomain* resolve(DomainHandle handle) noexcept override;
-    [[nodiscard]] const IDomain* resolve(DomainHandle handle) const noexcept override;
+    [[nodiscard]] const IDomain* resolve(DomainHandle handle) const noexcept;
 
     /// 创建命名域；同名已存在返回 nullptr；名字为空或与另一个已存在域发生哈希碰撞抛 DomainError。
     /// init 在域插入表之前执行，抛异常时域被丢弃、Workspace 状态不变。
-    [[nodiscard]] IDomain* create(std::string_view name, const Initializer& init = {}) override;
-
+    [[nodiscard]] IDomain* create(const char* name, const Initializer& init = {}) override;
     /// 按需分配：存在则返回，否则创建（并执行 init）。域正在销毁时抛 DomainError。
-    [[nodiscard]] IDomain* require(std::string_view name, const Initializer& init = {}) override;
-
-    /// 不存在或已在销毁中返回 false。
-    Status destroy(std::string_view name) override;
+    [[nodiscard]] IDomain* require(const char* name, const Initializer& init = {}) override;
+    /// 不存在或已在销毁中返回 false
     Status destroy(DomainId id) override;
+    Status destroy_by_name(const char* name) override;
 
     /// 创建匿名域（典型：每个打开的文档一个），id 由 Workspace 分配；label 仅用于诊断。
     IDomain* create_anonymous(std::string label = {}, const Initializer& init = {});
+
+    /// 捕获 lambda / 普通函数指针的 create_anonymous 适配器。
+    template<class F, std::enable_if_t<!std::is_same_v<std::decay_t<F>, Initializer>, int> = 0>
+    [[nodiscard]] IDomain* create_anonymous(std::string label, F&& init)
+    {
+        detail::DomainInitializer<std::decay_t<F>> holder{std::forward<F>(init)};
+        return insert(DomainId{m_nextAnonymous++}, std::move(label), holder.callback());
+    }
 
     /// 逆创建序销毁全部域。
     void clear();
@@ -93,6 +103,12 @@ public:
 
     /// True if `domain` is still owned by this world and was created with `serial`.
     [[nodiscard]] bool is_live(const Domain* domain, std::uint64_t serial) const noexcept;
+
+    /// 应用级原生 dispatcher（entt::dispatcher，仅引擎编译单元）。
+    /// 用于帧开始/插件生命周期等与具体 Domain 无关的类型安全事件。
+    /// 域内玩法事件请用 Domain::dispatcher()。
+    [[nodiscard]] Dispatcher& dispatcher() noexcept { return m_dispatcher; }
+    [[nodiscard]] const Dispatcher& dispatcher() const noexcept { return m_dispatcher; }
 
     Domain* find_internal(std::string_view name) const noexcept;
 
@@ -108,14 +124,44 @@ public:
         }
     }
 
-    /// 域已完整构造（含 init）并插入表之后触发
+    /// 域已完整构造（含 init）并插入表之后触发。
+    /// 低层重载：回调为 C 风格函数指针 + user，context 的生命周期由调用方负责。
     [[nodiscard]] Connection on_domain_created(DomainCallback callback);
     /// 域即将销毁时触发，此时域仍完整可用；回调抛出的异常会中止本次销毁并向上传播。
     /// 返回的 Connection 可以比 Workspace 活得更久。
     [[nodiscard]] Connection on_domain_destroying(DomainCallback callback);
 
+    /**
+     * @brief 捕获 lambda / 普通函数指针的 on_domain_created 适配器。
+     *
+     * 可调用对象被复制到一个 shared_ptr 中，由 hook 表持有；连接断开或 World 销毁
+     * 时自动释放。该对象及其函数指针 thunk 位于调用方模块，因此插件必须在卸载前
+     * disconnect 自己注册的 hook（与原先 std::function 版本的生命周期约束一致）。
+     */
+    template<class F, std::enable_if_t<!std::is_same_v<std::decay_t<F>, DomainCallback>, int> = 0>
+    [[nodiscard]] Connection on_domain_created(F&& callback)
+    {
+        using fn_type = std::decay_t<F>;
+        auto owner    = std::make_shared<fn_type>(std::forward<F>(callback));
+        const DomainCallback cb{owner.get(), &detail::invoke_domain_callback<fn_type>};
+        return add_created_hook(cb, std::move(owner));
+    }
+
+    /// 捕获 lambda / 普通函数指针的 on_domain_destroying 适配器。
+    template<class F, std::enable_if_t<!std::is_same_v<std::decay_t<F>, DomainCallback>, int> = 0>
+    [[nodiscard]] Connection on_domain_destroying(F&& callback)
+    {
+        using fn_type = std::decay_t<F>;
+        auto owner    = std::make_shared<fn_type>(std::forward<F>(callback));
+        const DomainCallback cb{owner.get(), &detail::invoke_domain_callback<fn_type>};
+        return add_destroying_hook(cb, std::move(owner));
+    }
+
 private:
     IDomain* insert(DomainId id, std::string name, const Initializer& init);
+    [[nodiscard]] Connection add_created_hook(DomainCallback callback, std::shared_ptr<void> owner);
+    [[nodiscard]] Connection add_destroying_hook(DomainCallback callback,
+                                                 std::shared_ptr<void> owner);
     [[nodiscard]] std::vector<DomainHandle> snapshot() const;
     void assertOwnerThread() const noexcept
     {

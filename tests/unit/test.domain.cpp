@@ -48,12 +48,12 @@ TEST(DomainTest, Hint)
 {
     Domain d(Domain::from_name("game.test"), "test", 1);
     const Entity hint = Entity::make(5, 0);
-    const Entity e    = d.create(hint);
+    const Entity e    = d.create_hint(hint);
     EXPECT_TRUE(e == hint);
     EXPECT_TRUE(d.alive(e));
     EXPECT_EQ(d.alive_count(), 1u);
 
-    const Entity e2 = d.create(null);
+    const Entity e2 = d.create_hint(null);
     EXPECT_FALSE(e2.is_null());
     EXPECT_EQ(d.alive_count(), 2u);
 }

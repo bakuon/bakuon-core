@@ -19,7 +19,7 @@
 
 namespace bakuon::core {
 
-BAKUON_CORE_API std::string_view versionString() noexcept;
+BAKUON_CORE_API const char* versionString() noexcept;
 BAKUON_CORE_API std::size_t stringHashed(std::string_view str) noexcept;
 
 } // namespace bakuon::core

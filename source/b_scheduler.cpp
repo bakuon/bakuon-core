@@ -76,7 +76,7 @@ Status Scheduler::add_system(const SystemDesc& d, ISystem* system) noexcept
     if (find_entry(d.name) != nullptr) {
         return Status::already_exists;
     }
-    IDomain* domain = m_world.find(d.domain);
+    IDomain* domain = m_world.find_by_name(d.domain);
     if (domain == nullptr) {
         return Status::not_found;
     }

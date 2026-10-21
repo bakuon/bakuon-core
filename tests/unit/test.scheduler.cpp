@@ -20,6 +20,60 @@ struct Shared
     IDomain* last_domain{nullptr};
 };
 
+/**
+ * 便利实现：用回调写 System（测试 / 未来的"数据驱动 System"可复用）。
+ * 回调与字符串都由本对象所属模块持有，不跨 ABI。
+ */
+class LambdaSystem final : public ISystem
+{
+public:
+    using UpdateFn = std::function<void(const FrameContext&, IDomain&)>;
+
+    LambdaSystem(std::string name, Phase phase, UpdateFn fn)
+        : m_name(std::move(name))
+        , m_phase(phase)
+        , m_fn(std::move(fn))
+    {
+    }
+
+    std::uint32_t abi_version() const noexcept override { return ISystem::abi_current; }
+    LambdaSystem& group(std::string) { return *this; }
+    LambdaSystem& priority(std::int32_t p)
+    {
+        m_priority = p;
+        return *this;
+    }
+    LambdaSystem& after(std::string dep, bool optional = false) { return *this; }
+    LambdaSystem& before(std::string sys) { return *this; }
+    LambdaSystem& on_attach_fn(std::function<bool(IDomain&)> fn)
+    {
+        m_attach = std::move(fn);
+        return *this;
+    }
+    bool on_attach(IDomain& w) override { return m_attach ? m_attach(w) : true; }
+
+    void describe(SystemDesc* out) const override
+    {
+        if (!out) {
+            return;
+        }
+        out->name     = m_name.c_str();
+        out->domain   = m_domain.c_str();
+        out->phase    = m_phase;
+        out->priority = m_priority;
+    }
+    void update(const FrameContext&, IDomain&) noexcept override {}
+    void release() noexcept override { delete this; }
+
+private:
+    std::string m_name;
+    std::string m_domain;
+    Phase m_phase;
+    UpdateFn m_fn;
+    std::int32_t m_priority = 0;
+    std::function<bool(IDomain&)> m_attach;
+};
+
 class Probe final : public ISystem
 {
 public:
@@ -148,7 +202,7 @@ TEST_F(SchedulerTest, PhasesRunInOrder)
     ASSERT_EQ(add("pre", Phase::pre_update), Status::ok);
     ASSERT_EQ(add("post", Phase::post_update), Status::ok);
     ASSERT_EQ(m_world.run_frame(FrameContext{}), Status::ok);
-    EXPECT_EQ(m_shared.log, (Names{"pre", "u", "post", "r"}));
+    EXPECT_EQ(m_shared.log, (Names{"pre", "u", "post", "f"}));
 }
 
 TEST_F(SchedulerTest, PriorityThenRegistrationOrder)
@@ -270,9 +324,9 @@ TEST_F(SchedulerTest, DescriptorValidation)
 TEST_F(SchedulerTest, DomainInUseCannotBeDestroyed)
 {
     ASSERT_EQ(add("a"), Status::ok);
-    EXPECT_EQ(m_world.destroy("main"), Status::busy);
+    EXPECT_EQ(m_world.destroy_by_name("main"), Status::busy);
     ASSERT_EQ(sched().remove_system("a"), Status::ok);
-    EXPECT_EQ(m_world.destroy("main"), Status::ok);
+    EXPECT_EQ(m_world.destroy_by_name("main"), Status::ok);
 }
 
 TEST_F(SchedulerTest, SystemReceivesDomainAndFrameContext)
@@ -281,7 +335,7 @@ TEST_F(SchedulerTest, SystemReceivesDomainAndFrameContext)
     ASSERT_EQ(m_world.run_frame(FrameContext{7, 0.5}), Status::ok);
     EXPECT_DOUBLE_EQ(m_shared.last_dt, 0.5);
     EXPECT_EQ(m_shared.last_frame, 7u);
-    EXPECT_TRUE(m_shared.last_domain == m_world.find("main"));
+    EXPECT_TRUE(m_shared.last_domain == m_world.require("main"));
 }
 
 TEST_F(SchedulerTest, SchedulerIsLockedWhileRunning)

@@ -36,7 +36,7 @@ public:
     /// create() returns null, destroy()/clear() do nothing. Callbacks may only
     /// read/write component payloads.
     [[nodiscard]] Entity create() noexcept override;
-    [[nodiscard]] Entity create(Entity hint) noexcept override;
+    [[nodiscard]] Entity create_hint(Entity hint) noexcept override;
     bool destroy(Entity entity) noexcept override;
     [[nodiscard]] bool alive(Entity entity) const noexcept override;
     std::size_t alive_count() const noexcept override { return m_alive_count; }

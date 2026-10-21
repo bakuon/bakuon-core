@@ -6,7 +6,7 @@
 
 namespace bakuon::core {
 
-std::string_view versionString() noexcept
+const char* versionString() noexcept
 {
     return "0.1.0";
 }

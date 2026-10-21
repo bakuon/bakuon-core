@@ -23,7 +23,7 @@ struct Counter
 // Reads the plugin's counter through the public API; -1 if unavailable.
 std::int32_t read_counter(IWorld& world)
 {
-    IDomain* d = world.find("main");
+    IDomain* d = world.find_by_name("main");
     if (d == nullptr) {
         return -1;
     }
@@ -95,7 +95,7 @@ TEST_F(PluginLoadingTest, LoadRunUnload)
     ASSERT_EQ(m_host.unload_plugin("test_plugin"), Status::ok);
     EXPECT_EQ(m_host.plugin_count(), 0u);
     EXPECT_FALSE(m_host.world().scheduler().has_system("test_plugin.counter"));
-    IDomain* d = m_host.world().find("main");
+    IDomain* d = m_host.world().find_by_name("main");
     ASSERT_TRUE(d != nullptr);
     EXPECT_FALSE(d->components().find("TestCounter").valid()); // plugin cleaned up its hooked type
     EXPECT_EQ(d->alive_count(), 0u);

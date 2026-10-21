@@ -3,16 +3,28 @@
 #include "bakuon/core/status.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace bakuon::core {
 
 namespace detail {
+
+/// One registered domain hook. The callback is a plain C-style descriptor; `owner`
+/// keeps a capturing lambda (or its heap copy) alive for as long as the hook exists.
+struct HookEntry
+{
+    std::size_t id{0};
+    DomainCallback callback;
+    std::shared_ptr<void> owner;
+};
+
 struct WorldHooks
 {
-    using Entry = std::pair<std::size_t, World::DomainCallback>;
-    std::vector<Entry> created;
-    std::vector<Entry> destroying;
+    std::vector<HookEntry> created;
+    std::vector<HookEntry> destroying;
     std::size_t nextId = 1;
 };
 
@@ -21,23 +33,52 @@ struct WorldHooks
 namespace {
 
 using Hooks    = detail::WorldHooks;
-using HookList = std::vector<Hooks::Entry> Hooks::*;
+using HookList = std::vector<detail::HookEntry> Hooks::*;
 
-Connection add_hook(const std::shared_ptr<Hooks>& hooks, HookList list,
-                    World::DomainCallback callback)
+/// Context owned by a Connection returned from add_hook(). It only needs a weak
+/// reference to the hook table so a Connection may outlive the World.
+struct HookRef
 {
-    const std::size_t id = hooks->nextId++;
-    (*hooks.*list).emplace_back(id, std::move(callback));
-    // 只持 weak_ptr：Workspace 先于 Connection 销毁时，断开是安全的空操作。
-    return Connection([weak = std::weak_ptr<Hooks>(hooks), list, id] {
-        if (const auto locked = weak.lock()) {
-            auto& entries = (*locked).*list;
-            entries.erase(std::remove_if(entries.begin(),
-                                         entries.end(),
-                                         [id](const Hooks::Entry& e) { return e.first == id; }),
-                          entries.end());
-        }
-    });
+    std::weak_ptr<Hooks> hooks;
+    HookList list{nullptr};
+    std::size_t id{0};
+};
+
+void disconnect_hook(void* context) noexcept
+{
+    auto* ref = static_cast<HookRef*>(context);
+    if (const auto hooks = ref->hooks.lock()) {
+        auto& entries = (*hooks).*ref->list;
+        entries.erase(std::remove_if(entries.begin(),
+                                     entries.end(),
+                                     [id = ref->id](const detail::HookEntry& entry) {
+                                         return entry.id == id;
+                                     }),
+                      entries.end());
+    }
+}
+
+void destroy_hook(void* context) noexcept
+{
+    delete static_cast<HookRef*>(context);
+}
+
+Connection add_hook(const std::shared_ptr<Hooks>& hooks, HookList list, DomainCallback callback,
+                    std::shared_ptr<void> owner)
+{
+    if (!callback) {
+        return Connection{};
+    }
+
+    auto ref   = std::make_unique<HookRef>();
+    ref->hooks = hooks;
+    ref->list  = list;
+    ref->id    = hooks->nextId++;
+
+    // The callback descriptor is non-owning; `owner` is what keeps a capturing
+    // lambda alive. Both are copied into the hook entry (and into notify snapshots).
+    (*hooks.*list).push_back(detail::HookEntry{ref->id, callback, std::move(owner)});
+    return Connection{ref.release(), &disconnect_hook, nullptr, &destroy_hook};
 }
 
 void ensure_same_name(const IDomain& existing, std::string_view name)
@@ -50,11 +91,12 @@ void ensure_same_name(const IDomain& existing, std::string_view name)
 
 void notify(const Hooks& hooks, HookList list, IDomain& domain)
 {
-    // 拷贝快照：回调里允许 disconnect/新增钩子。
-    const std::vector<Hooks::Entry> snapshot = hooks.*list;
+    // 拷贝快照：回调里允许 disconnect/新增钩子。owner 的 shared_ptr 副本保证
+    // 正在执行的回调即使被 disconnect，其闭包也不会在本次调用期间被释放。
+    const std::vector<detail::HookEntry> snapshot = hooks.*list;
     for (const auto& entry : snapshot) {
-        if (entry.second) {
-            entry.second(domain);
+        if (entry.callback.invoke != nullptr) {
+            entry.callback.invoke(entry.callback.user, domain);
         }
     }
 }
@@ -71,14 +113,16 @@ World::World() noexcept
 
 World::~World()
 {
-    // 先拆调度器：System::on_detach 仍可 resolve 到存活 Domain。
-    m_scheduler.reset();
-
+    // clear() first releases all systems through Scheduler::clear() while the domains
+    // are still alive, then destroys the domains. m_scheduler must stay valid for that
+    // call: resetting it here first would make clear() dereference a null unique_ptr.
     try {
         clear();
     } catch (...) {
         // 析构中不能抛。钩子抛异常时放弃剩余通知，由 m_domains 的成员析构兜底回收。
     }
+
+    m_scheduler.reset();
 
     // m_events 随成员析构自动释放。
 }
@@ -95,15 +139,9 @@ const IDomain* World::find(DomainId id) const noexcept
     return it == m_domains.end() ? nullptr : it->second.get();
 }
 
-IDomain* World::find(std::string_view name) noexcept
+IDomain* World::find_by_name(const char* name) noexcept
 {
     IDomain* domain = find(Domain::from_name(name));
-    return (domain && domain->name() == name) ? domain : nullptr;
-}
-
-const IDomain* World::find(std::string_view name) const noexcept
-{
-    const IDomain* domain = find(Domain::from_name(name));
     return (domain && domain->name() == name) ? domain : nullptr;
 }
 
@@ -119,7 +157,7 @@ const IDomain* World::resolve(DomainHandle handle) const noexcept
     return (domain && domain->serial() == handle.serial()) ? domain : nullptr;
 }
 
-IDomain* World::create(std::string_view name, const Initializer& init)
+IDomain* World::create(const char* name, const Initializer& init)
 {
     assertOwnerThread();
     const DomainId id = Domain::from_name(name);
@@ -133,7 +171,7 @@ IDomain* World::create(std::string_view name, const Initializer& init)
     return insert(id, std::string(name), init);
 }
 
-IDomain* World::require(std::string_view name, const Initializer& init)
+IDomain* World::require(const char* name, const Initializer& init)
 {
     assertOwnerThread();
     const DomainId id = Domain::from_name(name);
@@ -151,9 +189,9 @@ IDomain* World::require(std::string_view name, const Initializer& init)
     return insert(id, std::string(name), init);
 }
 
-Status World::destroy(std::string_view name)
+Status World::destroy_by_name(const char* name)
 {
-    if (const auto* domain = find(name))
+    if (const auto* domain = find_by_name(name))
         return destroy(domain->id());
     return Status::not_found;
 }
@@ -170,7 +208,7 @@ Status World::destroy(DomainId id)
     if (m_scheduler->uses_domain(domain.name())) {
         return Status::busy;
     }
-    domain.m_closing = true; // mark busy
+    domain.m_closing = true; // mark closing
     try {
         notify(*m_hooks, &Hooks::destroying, domain);
     } catch (...) {
@@ -241,12 +279,22 @@ Domain* World::find_internal(std::string_view name) const noexcept
 
 Connection World::on_domain_created(DomainCallback callback)
 {
-    return add_hook(m_hooks, &Hooks::created, std::move(callback));
+    return add_created_hook(callback, {});
 }
 
 Connection World::on_domain_destroying(DomainCallback callback)
 {
-    return add_hook(m_hooks, &Hooks::destroying, std::move(callback));
+    return add_destroying_hook(callback, {});
+}
+
+Connection World::add_created_hook(DomainCallback callback, std::shared_ptr<void> owner)
+{
+    return add_hook(m_hooks, &Hooks::created, callback, std::move(owner));
+}
+
+Connection World::add_destroying_hook(DomainCallback callback, std::shared_ptr<void> owner)
+{
+    return add_hook(m_hooks, &Hooks::destroying, callback, std::move(owner));
 }
 
 IDomain* World::insert(DomainId id, std::string name, const Initializer& init)

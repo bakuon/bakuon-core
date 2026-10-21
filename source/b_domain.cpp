@@ -38,7 +38,7 @@ Entity Domain::create() noexcept
     }
 }
 
-Entity Domain::create(Entity hint) noexcept
+Entity Domain::create_hint(Entity hint) noexcept
 {
     if (m_components.iterating()) {
         return Entity::null();

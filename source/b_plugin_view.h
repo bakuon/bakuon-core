@@ -136,7 +136,7 @@ public:
     const char* name() const noexcept override { return m_domain->name(); }
     bool closing() const noexcept override { return m_domain->closing(); }
     Entity create() noexcept override { return m_domain->create(); }
-    Entity create(Entity hint) noexcept override { return m_domain->create(hint); }
+    Entity create_hint(Entity hint) noexcept override { return m_domain->create_hint(hint); }
     bool destroy(Entity e) noexcept override { return m_domain->destroy(e); }
     bool alive(Entity e) const noexcept override { return m_domain->alive(e); }
     std::size_t alive_count() const noexcept override { return m_domain->alive_count(); }

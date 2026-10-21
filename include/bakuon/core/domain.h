@@ -23,7 +23,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
 
 /**
  * 插件可见的世界接口。本头不包含、不前向声明任何 entt 类型。
@@ -93,6 +92,7 @@ private:
 /**
  * @brief 插件唯一的世界接口 ——— 插件和引擎必须用同一套编译器，因为边界是 C++ 虚函数
  * @details 一个相互隔离的领域/上下文,独占一个 Registry。
+ * @warning 不要有重载的虚函数（MSVC 会重排重载虚函数的 vtable）
  */
 class BAKUON_CORE_API IDomain
 {
@@ -105,6 +105,7 @@ public:
     [[nodiscard]] virtual std::uint32_t abi_version() const noexcept = 0;
     [[nodiscard]] virtual DomainId id() const noexcept               = 0;
     [[nodiscard]] virtual const char* name() const noexcept          = 0;
+    /// Unique per world; lets holders detect that "their" domain was destroyed.
     [[nodiscard]] virtual std::uint64_t serial() const noexcept      = 0;
     [[nodiscard]] DomainHandle handle() const noexcept { return {id(), serial()}; };
     /// 正在被销毁（Domain Destroying 期间为 true）
@@ -116,7 +117,7 @@ public:
     /// Tries to create an entity with the requested value. The result may differ
     /// from @p hint if it is already alive, so always compare the result.
     /// A null hint behaves like create(). Returns `null` on failure.
-    [[nodiscard]] virtual Entity create(Entity hint) noexcept = 0;
+    [[nodiscard]] virtual Entity create_hint(Entity hint) noexcept = 0;
 
     /// Destroys an entity and everything attached to it.
     /// @return true if destroyed; false if @p entity was null or not alive.
