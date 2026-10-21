@@ -192,9 +192,9 @@ public:
     [[nodiscard]] virtual ComponentId type_at(std::size_t index) const noexcept = 0;
 
     // ---- per-entity access ----
-    /// Adds a component. `init` (size bytes) may be null -> default value or zeros.
-    /// `init` must not point into component storage of this domain.
-    /// `out_ptr` (optional) receives the instance; on already_present it
+    /// Adds a component. `bytes` (size bytes) may be null -> default value or zeros.
+    /// `bytes` must not point into component storage of this domain.
+    /// `out` (optional) receives the instance; on already_present it
     /// receives the EXISTING instance, which is left untouched.
     virtual Status emplace(Entity e, ComponentId id, const void* bytes, void** out) noexcept = 0;
 
