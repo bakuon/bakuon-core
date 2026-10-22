@@ -19,7 +19,7 @@ add_library(bakuon_core_vendor INTERFACE)
 
 cpmaddpackage(
     NAME EnTT
-    GITHUB_REPOSITORY bakuon/bakuon-entt
+    GITHUB_REPOSITORY skypjack/entt
     GIT_TAG v3.16.0 # 钉 tag，不要追 main
     VERSION 3.16.0
     OPTIONS "ENTT_INSTALL OFF" "ENTT_BUILD_TESTING OFF"
