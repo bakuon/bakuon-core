@@ -35,34 +35,6 @@ namespace {
 using Hooks    = detail::WorldHooks;
 using HookList = std::vector<detail::HookEntry> Hooks::*;
 
-/// Context owned by a Connection returned from add_hook(). It only needs a weak
-/// reference to the hook table so a Connection may outlive the World.
-struct HookRef
-{
-    std::weak_ptr<Hooks> hooks;
-    HookList list{nullptr};
-    std::size_t id{0};
-};
-
-void disconnect_hook(void* context) noexcept
-{
-    auto* ref = static_cast<HookRef*>(context);
-    if (const auto hooks = ref->hooks.lock()) {
-        auto& entries = (*hooks).*ref->list;
-        entries.erase(std::remove_if(entries.begin(),
-                                     entries.end(),
-                                     [id = ref->id](const detail::HookEntry& entry) {
-                                         return entry.id == id;
-                                     }),
-                      entries.end());
-    }
-}
-
-void destroy_hook(void* context) noexcept
-{
-    delete static_cast<HookRef*>(context);
-}
-
 Connection add_hook(const std::shared_ptr<Hooks>& hooks, HookList list, DomainCallback callback,
                     std::shared_ptr<void> owner)
 {
@@ -70,15 +42,27 @@ Connection add_hook(const std::shared_ptr<Hooks>& hooks, HookList list, DomainCa
         return Connection{};
     }
 
-    auto ref   = std::make_unique<HookRef>();
-    ref->hooks = hooks;
-    ref->list  = list;
-    ref->id    = hooks->nextId++;
+    const std::size_t id = hooks->nextId++;
 
-    // The callback descriptor is non-owning; `owner` is what keeps a capturing
-    // lambda alive. Both are copied into the hook entry (and into notify snapshots).
-    (*hooks.*list).push_back(detail::HookEntry{ref->id, callback, std::move(owner)});
-    return Connection{ref.release(), &disconnect_hook, nullptr, &destroy_hook};
+    // Connection is an internal type: std::function is allowed here and can own the
+    // weak_ptr capture. Build it before inserting so a throwing push_back cannot
+    // leave a hook entry behind without a disconnector.
+    Connection connection([weak = std::weak_ptr<Hooks>(hooks), list, id] {
+        if (const auto locked = weak.lock()) {
+            auto& entries = (*locked).*list;
+            entries.erase(std::remove_if(entries.begin(),
+                                         entries.end(),
+                                         [id](const detail::HookEntry& entry) {
+                                             return entry.id == id;
+                                         }),
+                          entries.end());
+        }
+    });
+
+    // The callback descriptor is non-owning; `owner` keeps a capturing lambda alive
+    // for as long as the hook entry exists (including notify() snapshots).
+    (*hooks.*list).push_back(detail::HookEntry{id, callback, std::move(owner)});
+    return connection;
 }
 
 void ensure_same_name(const IDomain& existing, std::string_view name)
